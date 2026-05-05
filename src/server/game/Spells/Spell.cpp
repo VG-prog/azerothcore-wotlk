@@ -6375,8 +6375,39 @@ SpellCastResult Spell::CheckCast(bool strict, uint32* /*param1*/, uint32* /*para
                         else if (m_preGeneratedPath->IsInvalidDestinationZ(target)) // Check position z, if not in a straight line
                             return SPELL_FAILED_NOPATH;
 
-                        m_preGeneratedPath->ShortenPathUntilDist(G3D::Vector3(target->GetPositionX(), target->GetPositionY(), target->GetPositionZ()), objSize); // move back
+                        //m_preGeneratedPath->ShortenPathUntilDist(G3D::Vector3(target->GetPositionX(), target->GetPositionY(), target->GetPositionZ()), objSize); // move back
+
+                        float const stopDist = std::max(
+                            objSize,
+                            m_caster->GetGroundProbeRadius() + target->GetGroundProbeRadius() + 0.05f);
+
+                        G3D::Vector3 const targetPos(
+                            target->GetPositionX(),
+                            target->GetPositionY(),
+                            target->GetPositionZ());
+
+                        m_preGeneratedPath->ShortenPathUntilDist2D(targetPos, stopDist);
+
+                        if (m_preGeneratedPath->GetPath().size() < 2)
+                            return SPELL_FAILED_NOPATH;
+
+                        G3D::Vector3 const& chargeEnd = m_preGeneratedPath->GetActualEndPosition();
+
+                        float const dx = chargeEnd.x - target->GetPositionX();
+                        float const dy = chargeEnd.y - target->GetPositionY();
+                        float const dist2dSq = dx * dx + dy * dy;
+                        float const minDist = stopDist * 0.85f;
+
+                        if (dist2dSq < minDist * minDist)
+                            return SPELL_FAILED_NOPATH;
+
+                        if (target->GetPositionZ() - chargeEnd.z > std::max(3.0f, m_caster->GetCollisionHeight()))
+                            return SPELL_FAILED_NOPATH;
+
+                        if (m_preGeneratedPath->IsInvalidDestinationZ(target))
+                            return SPELL_FAILED_NOPATH;
                     }
+
                     if (Player* player = m_caster->ToPlayer())
                         player->SetCanTeleport(true);
                     break;

@@ -24,6 +24,113 @@
 #include "Map.h"
 #include "Metric.h"
 
+ // Blades Edge Arena Ropes normalization
+namespace
+{
+    constexpr float BLADE_EDGE_ROPE_SNAP_DIST = 1.5f;
+    constexpr float BLADE_EDGE_ROPE_SNAP_DIST2 = BLADE_EDGE_ROPE_SNAP_DIST * BLADE_EDGE_ROPE_SNAP_DIST;
+    constexpr float BLADE_EDGE_ROPE_PI = 3.14159265358979323846f;
+
+    struct BladeEdgeArenaRope
+    {
+        G3D::Vector3 Start;
+        G3D::Vector3 End;
+        float Sag;
+    };
+
+    static const std::array<BladeEdgeArenaRope, 2> BladeEdgeArenaRopes =
+    { {
+        {
+            {6243.1523f, 267.53094f, 10.929295f},
+            {6245.9717f, 271.29346f, 10.879172f},
+            0.43f
+        },
+        {
+            {6234.3213f, 256.29733f, 11.002348f},
+            {6231.3247f, 252.58781f, 10.976968f},
+            0.46f
+        }
+    } };
+
+    bool IsOutsideExpandedXYBounds(G3D::Vector3 const& point, BladeEdgeArenaRope const& rope)
+    {
+        float const minX = std::min(rope.Start.x, rope.End.x) - BLADE_EDGE_ROPE_SNAP_DIST;
+        float const maxX = std::max(rope.Start.x, rope.End.x) + BLADE_EDGE_ROPE_SNAP_DIST;
+        float const minY = std::min(rope.Start.y, rope.End.y) - BLADE_EDGE_ROPE_SNAP_DIST;
+        float const maxY = std::max(rope.Start.y, rope.End.y) + BLADE_EDGE_ROPE_SNAP_DIST;
+
+        return point.x < minX || point.x > maxX || point.y < minY || point.y > maxY;
+    }
+
+    bool GetClosestPointOnBladeEdgeArenaRope(G3D::Vector3 const& point, BladeEdgeArenaRope const& rope, G3D::Vector3& closestPoint)
+    {
+        G3D::Vector3 const ropeVector = rope.End - rope.Start;
+
+        float const ropeLength2XY = ropeVector.x * ropeVector.x + ropeVector.y * ropeVector.y;
+        if (ropeLength2XY < 0.00001f)
+            return false;
+
+        G3D::Vector3 const pointVector = point - rope.Start;
+
+        float t = (pointVector.x * ropeVector.x + pointVector.y * ropeVector.y) / ropeLength2XY;
+        t = std::clamp(t, 0.0f, 1.0f);
+
+        float const closestX = rope.Start.x + ropeVector.x * t;
+        float const closestY = rope.Start.y + ropeVector.y * t;
+
+        float const dx = point.x - closestX;
+        float const dy = point.y - closestY;
+
+        // If the point is already too far in XY, it cannot be within the 3D snap radius.
+        if (dx * dx + dy * dy >= BLADE_EDGE_ROPE_SNAP_DIST2)
+            return false;
+
+        float const linearZ = rope.Start.z + (rope.End.z - rope.Start.z) * t;
+        float const sagZ = rope.Sag * std::sin(BLADE_EDGE_ROPE_PI * t);
+
+        closestPoint = { closestX, closestY, linearZ - sagZ };
+        return true;
+    }
+
+    bool TrySnapToBladeEdgeArenaRope(G3D::Vector3& point)
+    {
+        bool snapped = false;
+        float bestDist2 = BLADE_EDGE_ROPE_SNAP_DIST2;
+        G3D::Vector3 bestPoint;
+
+        for (BladeEdgeArenaRope const& rope : BladeEdgeArenaRopes)
+        {
+            if (IsOutsideExpandedXYBounds(point, rope))
+                continue;
+
+            G3D::Vector3 closestPoint;
+            if (!GetClosestPointOnBladeEdgeArenaRope(point, rope, closestPoint))
+                continue;
+
+            float const dist2 = (point - closestPoint).squaredLength();
+            if (dist2 < bestDist2)
+            {
+                bestDist2 = dist2;
+                bestPoint = closestPoint;
+                snapped = true;
+            }
+        }
+
+        if (snapped)
+            point = bestPoint;
+
+        return snapped;
+    }
+
+    void NormalizeAllowedPathPoint(WorldObject const* source, G3D::Vector3& point)
+    {
+        if (source->GetMapId() == MAP_BLADES_EDGE_ARENA && TrySnapToBladeEdgeArenaRope(point))
+            return;
+
+        source->UpdateAllowedPositionZ(point.x, point.y, point.z);
+    }
+}
+
  ////////////////// PathGenerator //////////////////
 PathGenerator::PathGenerator(WorldObject const* owner) :
     _polyLength(0), _type(PATHFIND_BLANK), _useStraightPath(false), _forceDestination(false),
@@ -622,10 +729,13 @@ void PathGenerator::BuildPointPath(const float* startPoint, const float* endPoin
 
 void PathGenerator::NormalizePath()
 {
-    for (uint32 i = 0; i < _pathPoints.size(); ++i)
+    for (G3D::Vector3& point : _pathPoints)
     {
-        _source->UpdateAllowedPositionZ(_pathPoints[i].x, _pathPoints[i].y, _pathPoints[i].z);
+        NormalizeAllowedPathPoint(_source, point);
     }
+
+    if (!_pathPoints.empty())
+        SetActualEndPosition(_pathPoints.back());
 }
 
 void PathGenerator::BuildShortcut()
@@ -1093,6 +1203,106 @@ void PathGenerator::ShortenPathUntilDist(G3D::Vector3 const& target, float dist)
     // (@todo review this)
     _pathPoints[i] += (_pathPoints[i - 1] - _pathPoints[i]).direction() * (dist - (_pathPoints[i] - target).length());
     _pathPoints.resize(i + 1);
+}
+
+void PathGenerator::ShortenPathUntilDist2D(G3D::Vector3 const& target, float dist)
+{
+    if (GetPathType() == PATHFIND_BLANK || _pathPoints.size() < 2)
+    {
+        LOG_ERROR("movement", "PathGenerator::ShortenPathUntilDist2D called before path was successfully built");
+        return;
+    }
+
+    dist = std::max(0.0f, dist);
+    float const distSq = dist * dist;
+
+    auto dist2dSq = [](G3D::Vector3 const& a, G3D::Vector3 const& b) -> float
+        {
+            float const dx = a.x - b.x;
+            float const dy = a.y - b.y;
+            return dx * dx + dy * dy;
+        };
+
+    if (dist2dSq(_pathPoints.front(), target) < distSq)
+        return;
+
+    if (dist2dSq(_pathPoints.back(), target) >= distSq)
+    {
+        SetActualEndPosition(_pathPoints.back());
+        return;
+    }
+
+    std::size_t i = _pathPoints.size() - 1;
+
+    while (i > 0 && dist2dSq(_pathPoints[i - 1], target) < distSq)
+        --i;
+
+    if (!i)
+    {
+        _pathPoints[0] = _pathPoints[1];
+        _pathPoints.resize(2);
+        SetActualEndPosition(_pathPoints.back());
+        return;
+    }
+
+    G3D::Vector3 const from = _pathPoints[i - 1];
+    G3D::Vector3 const to = _pathPoints[i];
+
+    float const vx = to.x - from.x;
+    float const vy = to.y - from.y;
+    float const wx = from.x - target.x;
+    float const wy = from.y - target.y;
+
+    float const a = vx * vx + vy * vy;
+    float const b = 2.0f * (wx * vx + wy * vy);
+    float const c = wx * wx + wy * wy - distSq;
+
+    float t = 0.0f;
+
+    if (a > 1.0e-6f)
+    {
+        float const disc = b * b - 4.0f * a * c;
+
+        if (disc >= 0.0f)
+        {
+            float const sqrtDisc = std::sqrt(disc);
+            float const invDenom = 1.0f / (2.0f * a);
+
+            float const t1 = (-b - sqrtDisc) * invDenom;
+            float const t2 = (-b + sqrtDisc) * invDenom;
+
+            if (t1 >= 0.0f && t1 <= 1.0f)
+                t = t1;
+            else if (t2 >= 0.0f && t2 <= 1.0f)
+                t = t2;
+        }
+    }
+
+    t = std::clamp(t, 0.0f, 1.0f);
+
+    G3D::Vector3 newEnd = from + (to - from) * t;
+    G3D::Vector3 const beforeSnap = newEnd;
+
+    NormalizeAllowedPathPoint(_source, newEnd);
+
+    // If the endpoint snapped to a much lower floor, we are probably at an edge/void.
+    // Use the previous safe path point instead of charging under the target.
+    float const maxSnapDown = std::max(2.0f, _source->GetCollisionHeight());
+
+    if (beforeSnap.z - newEnd.z > maxSnapDown)
+    {
+        G3D::Vector3 safeEnd = from;
+        NormalizeAllowedPathPoint(_source, safeEnd);
+
+        _pathPoints[i - 1] = safeEnd;
+        _pathPoints.resize(i);
+        SetActualEndPosition(_pathPoints.back());
+        return;
+    }
+
+    _pathPoints[i] = newEnd;
+    _pathPoints.resize(i + 1);
+    SetActualEndPosition(_pathPoints.back());
 }
 
 bool PathGenerator::IsInvalidDestinationZ(Unit const* target) const
