@@ -1224,7 +1224,10 @@ void PathGenerator::ShortenPathUntilDist2D(G3D::Vector3 const& target, float dis
         };
 
     if (dist2dSq(_pathPoints.front(), target) < distSq)
+    {
+        SetActualEndPosition(_pathPoints.front());
         return;
+    }
 
     if (dist2dSq(_pathPoints.back(), target) >= distSq)
     {
@@ -1303,6 +1306,71 @@ void PathGenerator::ShortenPathUntilDist2D(G3D::Vector3 const& target, float dis
     _pathPoints[i] = newEnd;
     _pathPoints.resize(i + 1);
     SetActualEndPosition(_pathPoints.back());
+}
+
+bool PathGenerator::NormalizeChargePath(float sampleDist, float maxStepUp, float maxStepDown)
+{
+    if (_pathPoints.size() < 2)
+        return false;
+
+    sampleDist = std::max(0.25f, sampleDist);
+    maxStepUp = std::max(0.25f, maxStepUp);
+    maxStepDown = std::max(0.25f, maxStepDown);
+
+    Movement::PointsArray normalized;
+    normalized.reserve(_pathPoints.size() * 2);
+
+    auto appendPoint = [&](G3D::Vector3 point) -> bool
+    {
+        if (!normalized.empty())
+        {
+            if ((normalized.back() - point).squaredLength() < 0.0001f)
+            {
+                normalized.back() = point;
+                return true;
+            }
+
+            float const dz = point.z - normalized.back().z;
+            if (dz > maxStepUp || -dz > maxStepDown)
+                return false;
+        }
+
+        normalized.push_back(point);
+        return true;
+    };
+
+    G3D::Vector3 first = _pathPoints.front();
+    NormalizeAllowedPathPoint(_source, first);
+    if (!appendPoint(first))
+        return false;
+
+    for (std::size_t i = 1; i < _pathPoints.size(); ++i)
+    {
+        G3D::Vector3 const from = _pathPoints[i - 1];
+        G3D::Vector3 const to = _pathPoints[i];
+        G3D::Vector3 const delta = to - from;
+
+        float const dist2d = std::sqrt(delta.x * delta.x + delta.y * delta.y);
+        uint32 const steps = std::max<uint32>(1, uint32(std::ceil(dist2d / sampleDist)));
+
+        for (uint32 step = 1; step <= steps; ++step)
+        {
+            float const t = float(step) / float(steps);
+            G3D::Vector3 point = from + delta * t;
+
+            NormalizeAllowedPathPoint(_source, point);
+
+            if (!appendPoint(point))
+                return false;
+        }
+    }
+
+    if (normalized.size() < 2)
+        return false;
+
+    _pathPoints = std::move(normalized);
+    SetActualEndPosition(_pathPoints.back());
+    return true;
 }
 
 bool PathGenerator::IsInvalidDestinationZ(Unit const* target) const

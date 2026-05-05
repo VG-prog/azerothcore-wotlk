@@ -4952,6 +4952,13 @@ void Spell::EffectCharge(SpellEffIndex /*effIndex*/)
         }
         else
         {
+            PathType const chargePathType = m_preGeneratedPath->GetPathType();
+            if (chargePathType & (
+                PATHFIND_NOPATH | PATHFIND_INCOMPLETE | PATHFIND_SHORT))
+            {
+                return;
+            }
+
             float const stopDist = std::max(
                 unitTarget->GetCombatReach(),
                 m_caster->GetGroundProbeRadius() + unitTarget->GetGroundProbeRadius() + 0.05f);
@@ -4965,6 +4972,17 @@ void Spell::EffectCharge(SpellEffIndex /*effIndex*/)
 
             if (m_preGeneratedPath->GetPath().size() < 2)
                 return;
+
+            float const maxChargeStepUp = std::max(1.50f, m_caster->GetCollisionHeight() * 0.75f);
+            float const maxChargeStepDown = std::max(3.00f, m_caster->GetCollisionHeight() * 1.50f);
+
+            if (!m_preGeneratedPath->NormalizeChargePath(
+                0.60f,
+                maxChargeStepUp,
+                maxChargeStepDown))
+            {
+                return;
+            }
 
             G3D::Vector3 const& chargeEnd = m_preGeneratedPath->GetActualEndPosition();
 
