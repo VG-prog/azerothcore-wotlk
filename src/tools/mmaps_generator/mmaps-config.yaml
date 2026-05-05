@@ -124,10 +124,11 @@ mmapsConfig:
     # All parameters defined globally are eligible for override.
     # Just specify the parameter name and new value in the override section.
     mapsOverrides:
-      "48": # Blackfathom Deeps
-        cellSizeVertical: 0.5334 # ch*2 = 0.2667 * 2 ≈ 0.5334. Reduce the chance to have underground levels.
       "562": # Blade's Edge Arena
         walkableRadius: 0 # This allows walking on the ropes to the pillars
+
+      "48": # Blackfathom Deeps
+        cellSizeVertical: 0.5334 # ch*2 = 0.2667 * 2 ≈ 0.5334. Reduce the chance to have underground levels.
 
       "529": # Arathi Basin
         tilesOverrides:
