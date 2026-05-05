@@ -238,7 +238,7 @@ namespace MMAP
                 if (mapNode.contains("verticesPerMapEdge"))
                     override.vertexPerMapEdge = mapNode["verticesPerMapEdge"].get_value<int>();
                 if (mapNode.contains("verticesPerTileEdge"))
-                    override.vertexPerMapEdge = mapNode["verticesPerTileEdge"].get_value<int>();
+                    override.vertexPerTileEdge = mapNode["verticesPerTileEdge"].get_value<int>();
                 if (mapNode.contains("cellSizeHorizontal"))
                     override.cellSizeHorizontal = mapNode["cellSizeHorizontal"].get_value<float>();
                 if (mapNode.contains("cellSizeVertical"))
