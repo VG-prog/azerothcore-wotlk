@@ -126,6 +126,8 @@ mmapsConfig:
     mapsOverrides:
       "48": # Blackfathom Deeps
         cellSizeVertical: 0.5334 # ch*2 = 0.2667 * 2 ≈ 0.5334. Reduce the chance to have underground levels.
+      "562": # Blade's Edge Arena
+        walkableRadius: 0 # This allows walking on the ropes to the pillars
 
       "529": # Arathi Basin
         tilesOverrides:
