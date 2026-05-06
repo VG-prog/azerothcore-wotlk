@@ -729,15 +729,6 @@ void PathGenerator::BuildPointPath(const float* startPoint, const float* endPoin
 
 void PathGenerator::NormalizePath()
 {
-    if (!_pathPoints.empty() && IsPathTypeCorridorNormalizable(GetPathType()))
-    {
-        PathCorridorNormalizeOptions normalizeOptions =
-            GetDefaultCorridorNormalizeOptions(_source, PathCorridorNormalizeMode::HeightOnly);
-
-        if (NormalizePathToCorridor(normalizeOptions))
-            return;
-    }
-
     for (G3D::Vector3& point : _pathPoints)
         NormalizeAllowedPathPoint(_source, point);
 
