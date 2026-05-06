@@ -1363,171 +1363,176 @@ bool PathGenerator::NormalizePathToCorridor(PathGenerator::PathCorridorNormalize
         options.SnapSpecialMapGeometry && _source->GetMapId() == MAP_BLADES_EDGE_ARENA;
 
     auto projectPointToCorridor = [&](G3D::Vector3& point) -> bool
+    {
+        float mmapPoint[VERTEX_SIZE] = { point.y, point.z, point.x };
+
+        dtPolyRef bestPoly = INVALID_POLYREF;
+        uint32 bestPolyIndex = polyCursor;
+        bool bestPosOverPoly = false;
+        float bestDist2D = std::numeric_limits<float>::max();
+        float bestClosest[VERTEX_SIZE] = { 0.0f, 0.0f, 0.0f };
+
+        auto considerPoly = [&](uint32 i)
         {
-            float mmapPoint[VERTEX_SIZE] = { point.y, point.z, point.x };
+            if (_pathPolyRefs[i] == INVALID_POLYREF)
+                return;
 
-            dtPolyRef bestPoly = INVALID_POLYREF;
-            uint32 bestPolyIndex = polyCursor;
-            bool bestPosOverPoly = false;
-            float bestDist2D = std::numeric_limits<float>::max();
-            float bestClosest[VERTEX_SIZE] = { 0.0f, 0.0f, 0.0f };
+            float closest[VERTEX_SIZE];
+            bool posOverPoly = false;
 
-            auto considerPoly = [&](uint32 i)
-                {
-                    if (_pathPolyRefs[i] == INVALID_POLYREF)
-                        return;
+            if (dtStatusFailed(_navMeshQuery->closestPointOnPoly(_pathPolyRefs[i], mmapPoint, closest, &posOverPoly)))
+                return;
 
-                    float closest[VERTEX_SIZE];
-                    bool posOverPoly = false;
+            float const dist2D = posOverPoly
+                ? 0.0f
+                : ((closest[2] - point.x) * (closest[2] - point.x) +
+                    (closest[0] - point.y) * (closest[0] - point.y));
 
-                    if (dtStatusFailed(_navMeshQuery->closestPointOnPoly(_pathPolyRefs[i], mmapPoint, closest, &posOverPoly)))
-                        return;
-
-                    float const dist2D = posOverPoly
-                        ? 0.0f
-                        : ((closest[2] - point.x) * (closest[2] - point.x) +
-                            (closest[0] - point.y) * (closest[0] - point.y));
-
-                    if (dist2D < bestDist2D)
-                    {
-                        bestDist2D = dist2D;
-                        bestPoly = _pathPolyRefs[i];
-                        bestPolyIndex = i;
-                        bestPosOverPoly = posOverPoly;
-                        dtVcopy(bestClosest, closest);
-                    }
-                };
-
-            auto scanRange = [&](uint32 begin, uint32 end)
-                {
-                    for (uint32 i = begin; i < end; ++i)
-                    {
-                        considerPoly(i);
-
-                        // Exact/near-exact hit on current forward corridor is already ideal.
-                        // Keep the first match to preserve Detour corridor order on shared edges.
-                        if (bestDist2D <= CORRIDOR_EXACT_DIST2D)
-                            break;
-                    }
-                };
-
-            uint32 const lookAhead = std::max<uint32>(1, options.PolyLookAhead);
-            uint32 const lookBehind = options.PolyLookBehind;
-
-            uint32 const forwardEnd = std::min<uint32>(_polyLength, polyCursor + lookAhead);
-
-            // 1) Current/forward corridor first.
-            scanRange(polyCursor, forwardEnd);
-
-            // 2) Small look-behind recovery only if forward did not produce an exact/near-exact match.
-            if (bestPoly == INVALID_POLYREF || bestDist2D > CORRIDOR_EXACT_DIST2D)
+            if (dist2D < bestDist2D)
             {
-                uint32 const backBegin = polyCursor > lookBehind ? polyCursor - lookBehind : 0;
-                scanRange(backBegin, polyCursor);
+                bestDist2D = dist2D;
+                bestPoly = _pathPolyRefs[i];
+                bestPolyIndex = i;
+                bestPosOverPoly = posOverPoly;
+                dtVcopy(bestClosest, closest);
             }
+        };
 
-            // 3) Full forward recovery.
-            if (bestPoly == INVALID_POLYREF || bestDist2D > CORRIDOR_EXACT_DIST2D)
-                scanRange(forwardEnd, _polyLength);
+        auto scanRange = [&](uint32 begin, uint32 end)
+        {
+            for (uint32 i = begin; i < end; ++i)
+            {
+                considerPoly(i);
 
-            // 4) Last-resort older corridor recovery.
-            if (bestPoly == INVALID_POLYREF || bestDist2D > maxCorridorDist2D)
-                scanRange(0, polyCursor);
+                // Exact/near-exact hit on current forward corridor is already ideal.
+                // Keep the first match to preserve Detour corridor order on shared edges.
+                if (bestDist2D <= CORRIDOR_EXACT_DIST2D)
+                    break;
+            }
+        };
 
-            if (bestPoly == INVALID_POLYREF)
+        uint32 const lookAhead = std::max<uint32>(1, options.PolyLookAhead);
+        uint32 const lookBehind = options.PolyLookBehind;
+
+        uint32 const forwardEnd = std::min<uint32>(_polyLength, polyCursor + lookAhead);
+
+        // 1) Current/forward corridor first.
+        scanRange(polyCursor, forwardEnd);
+
+        // 2) Small look-behind recovery only if forward did not produce an exact/near-exact match.
+        if (bestPoly == INVALID_POLYREF || bestDist2D > CORRIDOR_EXACT_DIST2D)
+        {
+            uint32 const backBegin = polyCursor > lookBehind ? polyCursor - lookBehind : 0;
+            scanRange(backBegin, polyCursor);
+        }
+
+        // 3) Full forward recovery.
+        if (bestPoly == INVALID_POLYREF || bestDist2D > CORRIDOR_EXACT_DIST2D)
+            scanRange(forwardEnd, _polyLength);
+
+        // 4) Last-resort older corridor recovery.
+        if (bestPoly == INVALID_POLYREF || bestDist2D > maxCorridorDist2D)
+            scanRange(0, polyCursor);
+
+        if (bestPoly == INVALID_POLYREF)
+            return false;
+
+        if (bestDist2D > maxCorridorDist2D)
+            return false;
+
+        uint32 const nextPolyCursor = options.PreserveCorridorOrder
+            ? std::max(polyCursor, bestPolyIndex)
+            : bestPolyIndex;
+
+        float const originalZ = point.z;
+        float height = originalZ;
+        float const* heightPoint = bestPosOverPoly ? mmapPoint : bestClosest;
+
+        if (dtStatusFailed(_navMeshQuery->getPolyHeight(bestPoly, heightPoint, &height)))
+            return false;
+
+        if (heightOnly)
+        {
+            float const dz = height - originalZ;
+            if (dz > maxStepUp || -dz > maxStepDown)
+                return false;
+        }
+
+        if (!bestPosOverPoly && bestDist2D > options.PreserveXYDist2D)
+        {
+            if (heightOnly || !options.AllowXYCorrection)
                 return false;
 
-            if (bestDist2D > maxCorridorDist2D)
-                return false;
+            point.x = bestClosest[2];
+            point.y = bestClosest[0];
+        }
 
-            uint32 const nextPolyCursor = options.PreserveCorridorOrder
-                ? std::max(polyCursor, bestPolyIndex)
-                : bestPolyIndex;
+        point.z = height;
+        polyCursor = nextPolyCursor;
+        return true;
+    };
 
-            float const originalZ = point.z;
-            float height = originalZ;
-            float const* heightPoint = bestPosOverPoly ? mmapPoint : bestClosest;
-
-            if (dtStatusFailed(_navMeshQuery->getPolyHeight(bestPoly, heightPoint, &height)))
-                return false;
-
-            if (heightOnly)
-            {
-                float const dz = height - originalZ;
-                if (dz > maxStepUp || -dz > maxStepDown)
-                    return false;
-            }
-
-            if (!bestPosOverPoly)
-            {
-                if (heightOnly)
-                {
-                    // Global mode must never change XY. If the point is too far from the
-                    // corridor, do not borrow corridor height for this point.
-                    if (bestDist2D > options.PreserveXYDist2D)
-                        return false;
-                }
-                else if (bestDist2D > options.PreserveXYDist2D)
-                {
-                    point.x = bestClosest[2];
-                    point.y = bestClosest[0];
-                }
-            }
-
-            point.z = height;
-            polyCursor = nextPolyCursor;
+    auto normalizePoint = [&](G3D::Vector3& point) -> bool
+    {
+        if (snapBladeEdgeArenaRopes && TrySnapToBladeEdgeArenaRope(point))
             return true;
-        };
 
-    auto normalizePoint = [&](G3D::Vector3 point) -> G3D::Vector3
+        G3D::Vector3 const before = point;
+
+        if (projectPointToCorridor(point))
+            return true;
+
+        if (options.FailOnProjectionFailure)
         {
-            if (snapBladeEdgeArenaRopes && TrySnapToBladeEdgeArenaRope(point))
-                return point;
+            point = before;
+            return false;
+        }
 
-            G3D::Vector3 const before = point;
+        if (!options.AllowFallbackToAllowedPositionZ)
+        {
+            point = before;
+            return true;
+        }
 
-            if (projectPointToCorridor(point))
-                return point;
+        NormalizeAllowedPathPoint(_source, point);
 
-            if (!options.AllowFallbackToAllowedPositionZ)
-                return before;
+        // Fallback only: Detour corridor height is authoritative when available.
+        // Generic Z correction is accepted only if it does not jump to an unrelated floor/ledge.
+        if (before.z - point.z > maxStepDown)
+            point = before;
+        else if (point.z - before.z > maxStepUp)
+            point = before;
 
-            NormalizeAllowedPathPoint(_source, point);
-
-            // Fallback only: Detour corridor height is authoritative when available.
-            // Generic Z correction is accepted only if it does not jump to an unrelated floor/ledge.
-            if (before.z - point.z > maxStepDown)
-                point = before;
-            else if (point.z - before.z > maxStepUp)
-                point = before;
-
-            return point;
-        };
+        return true;
+    };
 
     auto appendPoint = [&](G3D::Vector3 point)
+    {
+        if (normalized.empty())
         {
-            if (normalized.empty())
-            {
-                normalized.push_back(point);
-                return;
-            }
-
-            if ((normalized.back() - point).squaredLength() < 0.0001f)
-            {
-                normalized.back() = point;
-                return;
-            }
-
-            if (normalized.size() >= MAX_POINT_PATH_LENGTH)
-            {
-                normalized.back() = point;
-                return;
-            }
-
             normalized.push_back(point);
-        };
+            return;
+        }
 
-    G3D::Vector3 previous = normalizePoint(_pathPoints.front());
+        if ((normalized.back() - point).squaredLength() < 0.0001f)
+        {
+            normalized.back() = point;
+            return;
+        }
+
+        if (normalized.size() >= MAX_POINT_PATH_LENGTH)
+        {
+            normalized.back() = point;
+            return;
+        }
+
+        normalized.push_back(point);
+    };
+
+    G3D::Vector3 previous = _pathPoints.front();
+    if (!normalizePoint(previous))
+        return false;
+
     appendPoint(previous);
 
     for (std::size_t i = 1; i < _pathPoints.size(); ++i)
@@ -1546,13 +1551,18 @@ bool PathGenerator::NormalizePathToCorridor(PathGenerator::PathCorridorNormalize
                 float const t = float(step) / float(steps);
                 G3D::Vector3 point = from + delta * t;
 
-                point = normalizePoint(point);
+                if (!normalizePoint(point))
+                    return false;
+
                 appendPoint(point);
             }
         }
         else
         {
-            G3D::Vector3 point = normalizePoint(_pathPoints[i]);
+            G3D::Vector3 point = _pathPoints[i];
+            if (!normalizePoint(point))
+                return false;
+
             appendPoint(point);
         }
 
@@ -1684,6 +1694,9 @@ PathGenerator::PathCorridorNormalizeOptions PathGenerator::GetDefaultCorridorNor
     options.SnapSpecialMapGeometry = true;
     options.AllowFallbackToAllowedPositionZ = true;
 
+    options.AllowXYCorrection = false;
+    options.FailOnProjectionFailure = false;
+
     options.PreserveXYDist2D = 0.20f * 0.20f;
 
     options.SimplifySampledOutput = false;
@@ -1693,6 +1706,11 @@ PathGenerator::PathCorridorNormalizeOptions PathGenerator::GetDefaultCorridorNor
 
     if (mode == PathCorridorNormalizeMode::Sampled)
     {
+        // Charge profile: strict and allowed to correct XY.
+        options.AllowXYCorrection = true;
+        options.FailOnProjectionFailure = true;
+        options.AllowFallbackToAllowedPositionZ = false;
+
         options.SimplifySampledOutput = true;
         options.MaxOutputSegmentLength2D = 2.00f;
         options.MaxOutputDeviation2D = 0.25f;
@@ -1708,6 +1726,9 @@ PathGenerator::PathCorridorNormalizeOptions PathGenerator::GetDefaultCorridorNor
         options.PreserveCorridorOrder = true;
         options.SnapSpecialMapGeometry = true;
         options.AllowFallbackToAllowedPositionZ = true;
+
+        options.AllowXYCorrection = false;
+        options.FailOnProjectionFailure = false;
         options.SimplifySampledOutput = false;
 
         if (source)
@@ -1742,6 +1763,11 @@ bool PathGenerator::NormalizeChargePath(float sampleDist, float maxStepUp, float
     options.SampleDist = sampleDist;
     options.MaxStepUp = maxStepUp;
     options.MaxStepDown = maxStepDown;
+
+    options.AllowXYCorrection = true;
+    options.FailOnProjectionFailure = true;
+    options.AllowFallbackToAllowedPositionZ = false;
+    options.SimplifySampledOutput = true;
 
     return NormalizePathToCorridor(options);
 }

@@ -117,6 +117,14 @@ class PathGenerator
             // Squared 2D max distance from the already calculated Detour corridor.
             float MaxCorridorDist2D = 4.0f * 4.0f;
 
+            // Generic/global path normalization must not visibly move XY.
+            // Special profiles like Charge may explicitly allow XY correction.
+            bool AllowXYCorrection = false;
+
+            // Charge should fail if a sampled point cannot be projected to its Detour corridor.
+            // Generic movement should not fail because one point cannot be projected.
+            bool FailOnProjectionFailure = false;
+
             uint32 PolyLookAhead = 8;
             uint32 PolyLookBehind = 2;
 
