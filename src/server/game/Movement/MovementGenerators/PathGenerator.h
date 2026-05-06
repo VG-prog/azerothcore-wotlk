@@ -94,6 +94,41 @@ class PathGenerator
         // shortens the path until the destination is the specified distance from the target point
         void ShortenPathUntilDist(G3D::Vector3 const& point, float dist);
         void ShortenPathUntilDist2D(G3D::Vector3 const& target, float dist);
+
+        enum class PathCorridorNormalizeMode : uint8
+        {
+            ExistingPointsOnly = 0,
+            Sampled = 1
+        };
+
+        struct PathCorridorNormalizeOptions
+        {
+            PathCorridorNormalizeMode Mode = PathCorridorNormalizeMode::ExistingPointsOnly;
+
+            // Only used when Mode == Sampled.
+            float SampleDist = 1.0f;
+
+            // Used only when generic height fallback is needed.
+            // Detour corridor height remains authoritative when available.
+            float MaxStepUp = 1.50f;
+            float MaxStepDown = 3.00f;
+
+            // Squared 2D max distance from the already calculated Detour corridor.
+            float MaxCorridorDist2D = 4.0f * 4.0f;
+
+            uint32 PolyLookAhead = 8;
+            uint32 PolyLookBehind = 2;
+
+            bool PreserveCorridorOrder = true;
+            bool SnapSpecialMapGeometry = true;
+            bool AllowFallbackToAllowedPositionZ = true;
+        };
+
+        [[nodiscard]] static PathCorridorNormalizeOptions GetDefaultCorridorNormalizeOptions(
+            WorldObject const* source,
+            PathCorridorNormalizeMode mode = PathCorridorNormalizeMode::ExistingPointsOnly);
+
+        bool NormalizePathToCorridor(PathCorridorNormalizeOptions const& options);
         bool NormalizeChargePath(float sampleDist, float maxStepUp, float maxStepDown);
 
         [[nodiscard]] float getPathLength() const

@@ -207,6 +207,14 @@ namespace Movement
             bool result = path.CalculatePath(start.x, start.y, start.z, dest.x, dest.y, dest.z, forceDestination);
             if (result && !(path.GetPathType() & PATHFIND_NOPATH))
             {
+                if (!(path.GetPathType() & (PATHFIND_NOPATH | PATHFIND_INCOMPLETE | PATHFIND_SHORT | PATHFIND_NOT_USING_PATH)))
+                {
+                    PathGenerator::PathCorridorNormalizeOptions normalizeOptions =
+                        PathGenerator::GetDefaultCorridorNormalizeOptions(unit, PathGenerator::PathCorridorNormalizeMode::ExistingPointsOnly);
+
+                    path.NormalizePathToCorridor(normalizeOptions);
+                }
+
                 MovebyPath(path.GetPath());
                 return;
             }
@@ -226,6 +234,14 @@ namespace Movement
             bool result = path.CalculatePath(dest.x, dest.y, dest.z, forceDestination);
             if (result && !(path.GetPathType() & PATHFIND_NOPATH))
             {
+                if (!(path.GetPathType() & (PATHFIND_NOPATH | PATHFIND_INCOMPLETE | PATHFIND_SHORT | PATHFIND_NOT_USING_PATH)))
+                {
+                    PathGenerator::PathCorridorNormalizeOptions normalizeOptions =
+                        PathGenerator::GetDefaultCorridorNormalizeOptions(unit, PathGenerator::PathCorridorNormalizeMode::ExistingPointsOnly);
+
+                    path.NormalizePathToCorridor(normalizeOptions);
+                }
+
                 MovebyPath(path.GetPath());
                 return;
             }

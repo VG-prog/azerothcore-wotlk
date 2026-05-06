@@ -165,6 +165,14 @@ void RandomMovementGenerator<Creature>::_setRandomLocation(Creature* creature)
                     return;
                 }
 
+                if (result && !(_pathGenerator->GetPathType() & (PATHFIND_NOPATH | PATHFIND_INCOMPLETE | PATHFIND_SHORT | PATHFIND_NOT_USING_PATH)))
+                {
+                    PathGenerator::PathCorridorNormalizeOptions normalizeOptions =
+                        PathGenerator::GetDefaultCorridorNormalizeOptions(creature, PathGenerator::PathCorridorNormalizeMode::ExistingPointsOnly);
+
+                    _pathGenerator->NormalizePathToCorridor(normalizeOptions);
+                }
+
                 finalPath = _pathGenerator->GetPath();
                 Movement::PointsArray::iterator itr = finalPath.begin();
                 Movement::PointsArray::iterator itrNext = finalPath.begin() + 1;

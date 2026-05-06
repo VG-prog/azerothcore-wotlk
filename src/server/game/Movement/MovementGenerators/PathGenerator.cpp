@@ -1303,210 +1303,229 @@ void PathGenerator::ShortenPathUntilDist2D(G3D::Vector3 const& target, float dis
     SetActualEndPosition(_pathPoints.back());
 }
 
-bool PathGenerator::NormalizeChargePath(float sampleDist, float maxStepUp, float maxStepDown)
+bool PathGenerator::NormalizePathToCorridor(PathGenerator::PathCorridorNormalizeOptions const& options)
 {
     if (_pathPoints.size() < 2)
         return false;
 
-    sampleDist = std::max(0.35f, sampleDist);
-    maxStepUp = std::max(0.25f, maxStepUp);
-    maxStepDown = std::max(2.0f, maxStepDown);
+    if (!_navMeshQuery || !_polyLength)
+        return false;
 
-    constexpr float CHARGE_CORRIDOR_MAX_DIST2D = 4.0f * 4.0f;
-    constexpr float CHARGE_CORRIDOR_EXACT_DIST2D = 0.0001f;
-    constexpr uint32 CHARGE_POLY_LOOKAHEAD = 8;
-    constexpr uint32 CHARGE_POLY_LOOKBEHIND = 2;
+    if (GetPathType() & PATHFIND_NOT_USING_PATH)
+        return false;
+
+    float sampleDist = std::max(0.35f, options.SampleDist);
+    float const maxStepUp = std::max(0.25f, options.MaxStepUp);
+    float const maxStepDown = std::max(2.0f, options.MaxStepDown);
+    float const maxCorridorDist2D = std::max(0.25f, options.MaxCorridorDist2D);
+
+    constexpr float CORRIDOR_EXACT_DIST2D = 0.0001f;
 
     float totalDist2d = 0.0f;
-    for (std::size_t i = 1; i < _pathPoints.size(); ++i)
+    if (options.Mode == PathCorridorNormalizeMode::Sampled)
     {
-        float const dx = _pathPoints[i].x - _pathPoints[i - 1].x;
-        float const dy = _pathPoints[i].y - _pathPoints[i - 1].y;
-        totalDist2d += std::sqrt(dx * dx + dy * dy);
-    }
+        for (std::size_t i = 1; i < _pathPoints.size(); ++i)
+        {
+            float const dx = _pathPoints[i].x - _pathPoints[i - 1].x;
+            float const dy = _pathPoints[i].y - _pathPoints[i - 1].y;
+            totalDist2d += std::sqrt(dx * dx + dy * dy);
+        }
 
-    if (totalDist2d > 0.0f)
-    {
-        float const minSafeSampleDist = totalDist2d / float(MAX_POINT_PATH_LENGTH - 1);
-        sampleDist = std::max(sampleDist, minSafeSampleDist);
+        if (totalDist2d > 0.0f)
+        {
+            float const minSafeSampleDist = totalDist2d / float(MAX_POINT_PATH_LENGTH - 1);
+            sampleDist = std::max(sampleDist, minSafeSampleDist);
+        }
     }
 
     Movement::PointsArray normalized;
-    uint32 const estimatedPointCount = totalDist2d > 0.0f
+
+    uint32 const estimatedPointCount =
+        (options.Mode == PathCorridorNormalizeMode::Sampled && totalDist2d > 0.0f)
         ? uint32(std::ceil(totalDist2d / sampleDist)) + 2u
         : uint32(_pathPoints.size());
-    normalized.reserve(std::min<uint32>(MAX_POINT_PATH_LENGTH, std::max<uint32>(estimatedPointCount, uint32(_pathPoints.size())))); 
+
+    normalized.reserve(std::min<uint32>(
+        MAX_POINT_PATH_LENGTH,
+        std::max<uint32>(estimatedPointCount, uint32(_pathPoints.size()))));
 
     uint32 polyCursor = 0;
-    bool const snapBladeEdgeArenaRopes = _source->GetMapId() == MAP_BLADES_EDGE_ARENA;
+    bool const snapBladeEdgeArenaRopes =
+        options.SnapSpecialMapGeometry && _source->GetMapId() == MAP_BLADES_EDGE_ARENA;
 
-    auto getNavmeshHeight = [&](G3D::Vector3& point) -> bool
-    {
-        if (!_navMeshQuery || !_polyLength)
-            return false;
-
-        float mmapPoint[VERTEX_SIZE] = { point.y, point.z, point.x };
-
-        dtPolyRef bestPoly = INVALID_POLYREF;
-        uint32 bestPolyIndex = polyCursor;
-        bool bestPosOverPoly = false;
-        float bestDist2D = std::numeric_limits<float>::max();
-        float bestClosest[VERTEX_SIZE] = { 0.0f, 0.0f, 0.0f };
-
-        auto considerPoly = [&](uint32 i)
+    auto projectPointToCorridor = [&](G3D::Vector3& point) -> bool
         {
-            if (_pathPolyRefs[i] == INVALID_POLYREF)
-                return;
+            float mmapPoint[VERTEX_SIZE] = { point.y, point.z, point.x };
 
-            float closest[VERTEX_SIZE];
-            bool posOverPoly = false;
-            if (dtStatusFailed(_navMeshQuery->closestPointOnPoly(_pathPolyRefs[i], mmapPoint, closest, &posOverPoly)))
-                return;
+            dtPolyRef bestPoly = INVALID_POLYREF;
+            uint32 bestPolyIndex = polyCursor;
+            bool bestPosOverPoly = false;
+            float bestDist2D = std::numeric_limits<float>::max();
+            float bestClosest[VERTEX_SIZE] = { 0.0f, 0.0f, 0.0f };
 
-            float const dist2D = posOverPoly
-                ? 0.0f
-                : ((closest[2] - point.x) * (closest[2] - point.x) +
-                   (closest[0] - point.y) * (closest[0] - point.y));
+            auto considerPoly = [&](uint32 i)
+                {
+                    if (_pathPolyRefs[i] == INVALID_POLYREF)
+                        return;
 
-            if (dist2D < bestDist2D)
+                    float closest[VERTEX_SIZE];
+                    bool posOverPoly = false;
+
+                    if (dtStatusFailed(_navMeshQuery->closestPointOnPoly(_pathPolyRefs[i], mmapPoint, closest, &posOverPoly)))
+                        return;
+
+                    float const dist2D = posOverPoly
+                        ? 0.0f
+                        : ((closest[2] - point.x) * (closest[2] - point.x) +
+                            (closest[0] - point.y) * (closest[0] - point.y));
+
+                    if (dist2D < bestDist2D)
+                    {
+                        bestDist2D = dist2D;
+                        bestPoly = _pathPolyRefs[i];
+                        bestPolyIndex = i;
+                        bestPosOverPoly = posOverPoly;
+                        dtVcopy(bestClosest, closest);
+                    }
+                };
+
+            auto scanRange = [&](uint32 begin, uint32 end)
+                {
+                    for (uint32 i = begin; i < end; ++i)
+                    {
+                        considerPoly(i);
+
+                        // Exact/near-exact hit on current forward corridor is already ideal.
+                        // Keep the first match to preserve Detour corridor order on shared edges.
+                        if (bestDist2D <= CORRIDOR_EXACT_DIST2D)
+                            break;
+                    }
+                };
+
+            uint32 const lookAhead = std::max<uint32>(1, options.PolyLookAhead);
+            uint32 const lookBehind = options.PolyLookBehind;
+
+            uint32 const forwardEnd = std::min<uint32>(_polyLength, polyCursor + lookAhead);
+
+            // 1) Current/forward corridor first.
+            scanRange(polyCursor, forwardEnd);
+
+            // 2) Small look-behind recovery only if forward did not produce an exact/near-exact match.
+            if (bestPoly == INVALID_POLYREF || bestDist2D > CORRIDOR_EXACT_DIST2D)
             {
-                bestDist2D = dist2D;
-                bestPoly = _pathPolyRefs[i];
-                bestPolyIndex = i;
-                bestPosOverPoly = posOverPoly;
-                dtVcopy(bestClosest, closest);
+                uint32 const backBegin = polyCursor > lookBehind ? polyCursor - lookBehind : 0;
+                scanRange(backBegin, polyCursor);
             }
+
+            // 3) Full forward recovery.
+            if (bestPoly == INVALID_POLYREF || bestDist2D > CORRIDOR_EXACT_DIST2D)
+                scanRange(forwardEnd, _polyLength);
+
+            // 4) Last-resort older corridor recovery.
+            if (bestPoly == INVALID_POLYREF || bestDist2D > maxCorridorDist2D)
+                scanRange(0, polyCursor);
+
+            if (bestPoly == INVALID_POLYREF)
+                return false;
+
+            if (bestDist2D > maxCorridorDist2D)
+                return false;
+
+            if (options.PreserveCorridorOrder)
+                polyCursor = std::max(polyCursor, bestPolyIndex);
+            else
+                polyCursor = bestPolyIndex;
+
+            float height = point.z;
+            float const* heightPoint = bestPosOverPoly ? mmapPoint : bestClosest;
+
+            if (dtStatusFailed(_navMeshQuery->getPolyHeight(bestPoly, heightPoint, &height)))
+                return false;
+
+            if (!bestPosOverPoly)
+            {
+                point.x = bestClosest[2];
+                point.y = bestClosest[0];
+            }
+
+            point.z = height;
+            return true;
         };
 
-        auto scanRange = [&](uint32 begin, uint32 end)
+    auto normalizePoint = [&](G3D::Vector3 point) -> G3D::Vector3
         {
-            for (uint32 i = begin; i < end; ++i)
-            {
-                considerPoly(i);
+            if (snapBladeEdgeArenaRopes && TrySnapToBladeEdgeArenaRope(point))
+                return point;
 
-                // Exact/near-exact hit on current forward corridor is already ideal.
-                // Keep the first match to preserve corridor order on shared poly edges.
-                if (bestDist2D <= CHARGE_CORRIDOR_EXACT_DIST2D)
-                    break;
-            }
+            G3D::Vector3 const before = point;
+
+            if (projectPointToCorridor(point))
+                return point;
+
+            if (!options.AllowFallbackToAllowedPositionZ)
+                return before;
+
+            NormalizeAllowedPathPoint(_source, point);
+
+            // Fallback only: Detour corridor height is authoritative when available.
+            // Generic Z correction is accepted only if it does not jump to an unrelated floor/ledge.
+            if (before.z - point.z > maxStepDown)
+                point = before;
+            else if (point.z - before.z > maxStepUp)
+                point = before;
+
+            return point;
         };
-
-        // Fast path: most Charge samples stay on the current/next corridor polys.
-        // If this gives an exact hit, no full corridor scan is needed.
-        uint32 const forwardEnd = std::min<uint32>(_polyLength, polyCursor + CHARGE_POLY_LOOKAHEAD);
-
-        // Prefer current/forward corridor first. This avoids choosing a previous poly
-        // on shared edges when both polygons report posOverPoly.
-        scanRange(polyCursor, forwardEnd);
-
-        if (bestPoly == INVALID_POLYREF || bestDist2D > CHARGE_CORRIDOR_EXACT_DIST2D)
-        {
-            // Small look-behind recovery for portal/border precision, but only after
-            // current/forward polys failed to give an exact or near-exact match.
-            uint32 const backBegin = polyCursor > CHARGE_POLY_LOOKBEHIND ? polyCursor - CHARGE_POLY_LOOKBEHIND : 0;
-            scanRange(backBegin, polyCursor);
-        }
-
-        if (bestPoly == INVALID_POLYREF || bestDist2D > CHARGE_CORRIDOR_EXACT_DIST2D)
-        {
-            // Full forward scan preserves Detour corridor order and quality.
-            scanRange(forwardEnd, _polyLength);
-        }
-
-        if (bestPoly == INVALID_POLYREF || bestDist2D > CHARGE_CORRIDOR_MAX_DIST2D)
-        {
-            // Rare recovery: allow older corridor polys only if forward search failed.
-            scanRange(0, polyCursor);
-        }
-
-        if (bestPoly == INVALID_POLYREF)
-            return false;
-
-        // The charge point should stay near its own path corridor.
-        if (bestDist2D > CHARGE_CORRIDOR_MAX_DIST2D)
-            return false;
-
-        polyCursor = std::max(polyCursor, bestPolyIndex);
-
-        float height = point.z;
-        float const* heightPoint = bestPosOverPoly ? mmapPoint : bestClosest;
-
-        if (dtStatusFailed(_navMeshQuery->getPolyHeight(bestPoly, heightPoint, &height)))
-            return false;
-
-        if (!bestPosOverPoly)
-        {
-            point.x = bestClosest[2];
-            point.y = bestClosest[0];
-        }
-
-        point.z = height;
-        return true;
-    };
-
-    auto normalizeChargePoint = [&](G3D::Vector3 point) -> G3D::Vector3
-    {
-        if (snapBladeEdgeArenaRopes && TrySnapToBladeEdgeArenaRope(point))
-            return point;
-
-        G3D::Vector3 const before = point;
-
-        if (getNavmeshHeight(point))
-            return point;
-
-        NormalizeAllowedPathPoint(_source, point);
-
-        // Fallback only: never let generic height correction send Charge to a much lower floor
-        // or snap it upward to an unrelated ledge. Detour height is authoritative when available.
-        if (before.z - point.z > maxStepDown)
-            point = before;
-        else if (point.z - before.z > maxStepUp)
-            point = before;
-
-        return point;
-    };
 
     auto appendPoint = [&](G3D::Vector3 point)
-    {
-        if (normalized.empty())
         {
+            if (normalized.empty())
+            {
+                normalized.push_back(point);
+                return;
+            }
+
+            if ((normalized.back() - point).squaredLength() < 0.0001f)
+            {
+                normalized.back() = point;
+                return;
+            }
+
+            if (normalized.size() >= MAX_POINT_PATH_LENGTH)
+            {
+                normalized.back() = point;
+                return;
+            }
+
             normalized.push_back(point);
-            return;
-        }
+        };
 
-        if ((normalized.back() - point).squaredLength() < 0.0001f)
-        {
-            normalized.back() = point;
-            return;
-        }
-
-        if (normalized.size() >= MAX_POINT_PATH_LENGTH)
-        {
-            normalized.back() = point;
-            return;
-        }
-
-        normalized.push_back(point);
-    };
-
-    G3D::Vector3 previous = normalizeChargePoint(_pathPoints.front());
+    G3D::Vector3 previous = normalizePoint(_pathPoints.front());
     appendPoint(previous);
 
     for (std::size_t i = 1; i < _pathPoints.size(); ++i)
     {
-        G3D::Vector3 const from = previous;
-        G3D::Vector3 const to = _pathPoints[i];
-        G3D::Vector3 const delta = to - from;
-
-        float const dist2d = std::sqrt(delta.x * delta.x + delta.y * delta.y);
-        uint32 const steps = std::max<uint32>(1, uint32(std::ceil(dist2d / sampleDist)));
-
-        for (uint32 step = 1; step <= steps; ++step)
+        if (options.Mode == PathCorridorNormalizeMode::Sampled)
         {
-            float const t = float(step) / float(steps);
-            G3D::Vector3 point = from + delta * t;
+            G3D::Vector3 const from = previous;
+            G3D::Vector3 const to = _pathPoints[i];
+            G3D::Vector3 const delta = to - from;
 
-            point = normalizeChargePoint(point);
+            float const dist2d = std::sqrt(delta.x * delta.x + delta.y * delta.y);
+            uint32 const steps = std::max<uint32>(1, uint32(std::ceil(dist2d / sampleDist)));
+
+            for (uint32 step = 1; step <= steps; ++step)
+            {
+                float const t = float(step) / float(steps);
+                G3D::Vector3 point = from + delta * t;
+
+                point = normalizePoint(point);
+                appendPoint(point);
+            }
+        }
+        else
+        {
+            G3D::Vector3 point = normalizePoint(_pathPoints[i]);
             appendPoint(point);
         }
 
@@ -1519,6 +1538,47 @@ bool PathGenerator::NormalizeChargePath(float sampleDist, float maxStepUp, float
     _pathPoints = std::move(normalized);
     SetActualEndPosition(_pathPoints.back());
     return true;
+}
+
+PathGenerator::PathCorridorNormalizeOptions PathGenerator::GetDefaultCorridorNormalizeOptions(
+    WorldObject const* source,
+    PathCorridorNormalizeMode mode)
+{
+    PathCorridorNormalizeOptions options;
+    options.Mode = mode;
+
+    if (mode == PathCorridorNormalizeMode::Sampled)
+        options.SampleDist = 0.35f;
+    else
+        options.SampleDist = 1.0f;
+
+    if (source)
+    {
+        options.MaxStepUp = std::max(1.50f, source->GetCollisionHeight() * 0.75f);
+        options.MaxStepDown = std::max(3.00f, source->GetCollisionHeight() * 1.50f);
+    }
+
+    options.MaxCorridorDist2D = 4.0f * 4.0f;
+    options.PolyLookAhead = 8;
+    options.PolyLookBehind = 2;
+    options.PreserveCorridorOrder = true;
+    options.SnapSpecialMapGeometry = true;
+    options.AllowFallbackToAllowedPositionZ = true;
+
+    return options;
+}
+
+bool PathGenerator::NormalizeChargePath(float sampleDist, float maxStepUp, float maxStepDown)
+{
+    PathCorridorNormalizeOptions options = GetDefaultCorridorNormalizeOptions(
+        _source,
+        PathCorridorNormalizeMode::Sampled);
+
+    options.SampleDist = sampleDist;
+    options.MaxStepUp = maxStepUp;
+    options.MaxStepDown = maxStepDown;
+
+    return NormalizePathToCorridor(options);
 }
 
 bool PathGenerator::IsInvalidDestinationZ(Unit const* target) const
