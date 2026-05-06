@@ -729,10 +729,17 @@ void PathGenerator::BuildPointPath(const float* startPoint, const float* endPoin
 
 void PathGenerator::NormalizePath()
 {
-    for (G3D::Vector3& point : _pathPoints)
+    if (!_pathPoints.empty() && IsPathTypeCorridorNormalizable(GetPathType()))
     {
-        NormalizeAllowedPathPoint(_source, point);
+        PathCorridorNormalizeOptions normalizeOptions =
+            GetDefaultCorridorNormalizeOptions(_source, PathCorridorNormalizeMode::HeightOnly);
+
+        if (NormalizePathToCorridor(normalizeOptions))
+            return;
     }
+
+    for (G3D::Vector3& point : _pathPoints)
+        NormalizeAllowedPathPoint(_source, point);
 
     if (!_pathPoints.empty())
         SetActualEndPosition(_pathPoints.back());
@@ -1319,6 +1326,7 @@ bool PathGenerator::NormalizePathToCorridor(PathGenerator::PathCorridorNormalize
     float const maxStepUp = std::max(0.25f, options.MaxStepUp);
     float const maxStepDown = std::max(2.0f, options.MaxStepDown);
     float const maxCorridorDist2D = std::max(0.25f, options.MaxCorridorDist2D);
+    bool const heightOnly = options.Mode == PathCorridorNormalizeMode::HeightOnly;
 
     constexpr float CORRIDOR_EXACT_DIST2D = 0.0001f;
 
@@ -1436,16 +1444,34 @@ bool PathGenerator::NormalizePathToCorridor(PathGenerator::PathCorridorNormalize
                 ? std::max(polyCursor, bestPolyIndex)
                 : bestPolyIndex;
 
-            float height = point.z;
+            float const originalZ = point.z;
+            float height = originalZ;
             float const* heightPoint = bestPosOverPoly ? mmapPoint : bestClosest;
 
             if (dtStatusFailed(_navMeshQuery->getPolyHeight(bestPoly, heightPoint, &height)))
                 return false;
 
-            if (!bestPosOverPoly && bestDist2D > options.PreserveXYDist2D)
+            if (heightOnly)
             {
-                point.x = bestClosest[2];
-                point.y = bestClosest[0];
+                float const dz = height - originalZ;
+                if (dz > maxStepUp || -dz > maxStepDown)
+                    return false;
+            }
+
+            if (!bestPosOverPoly)
+            {
+                if (heightOnly)
+                {
+                    // Global mode must never change XY. If the point is too far from the
+                    // corridor, do not borrow corridor height for this point.
+                    if (bestDist2D > options.PreserveXYDist2D)
+                        return false;
+                }
+                else if (bestDist2D > options.PreserveXYDist2D)
+                {
+                    point.x = bestClosest[2];
+                    point.y = bestClosest[0];
+                }
             }
 
             point.z = height;
@@ -1660,6 +1686,11 @@ PathGenerator::PathCorridorNormalizeOptions PathGenerator::GetDefaultCorridorNor
 
     options.PreserveXYDist2D = 0.20f * 0.20f;
 
+    options.SimplifySampledOutput = false;
+    options.MaxOutputSegmentLength2D = 2.00f;
+    options.MaxOutputDeviation2D = 0.25f;
+    options.MaxOutputDeviationZ = 0.40f;
+
     if (mode == PathCorridorNormalizeMode::Sampled)
     {
         options.SimplifySampledOutput = true;
@@ -1667,12 +1698,23 @@ PathGenerator::PathCorridorNormalizeOptions PathGenerator::GetDefaultCorridorNor
         options.MaxOutputDeviation2D = 0.25f;
         options.MaxOutputDeviationZ = 0.40f;
     }
-    else
+    else if (mode == PathCorridorNormalizeMode::HeightOnly)
     {
+        // Global path normalization: safe, cheap, no visible lateral correction.
+        options.MaxCorridorDist2D = 0.50f * 0.50f;
+        options.PreserveXYDist2D = 0.50f * 0.50f;
+        options.PolyLookAhead = 4;
+        options.PolyLookBehind = 1;
+        options.PreserveCorridorOrder = true;
+        options.SnapSpecialMapGeometry = true;
+        options.AllowFallbackToAllowedPositionZ = true;
         options.SimplifySampledOutput = false;
-        options.MaxOutputSegmentLength2D = 2.00f;
-        options.MaxOutputDeviation2D = 0.25f;
-        options.MaxOutputDeviationZ = 0.40f;
+
+        if (source)
+        {
+            options.MaxStepUp = std::max(0.75f, source->GetCollisionHeight() * 0.50f);
+            options.MaxStepDown = std::max(1.50f, source->GetCollisionHeight());
+        }
     }
 
     return options;

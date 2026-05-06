@@ -98,7 +98,8 @@ class PathGenerator
         enum class PathCorridorNormalizeMode : uint8
         {
             ExistingPointsOnly = 0,
-            Sampled = 1
+            Sampled = 1,
+            HeightOnly = 2
         };
 
         struct PathCorridorNormalizeOptions
