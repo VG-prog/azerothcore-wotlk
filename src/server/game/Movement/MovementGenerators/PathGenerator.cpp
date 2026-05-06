@@ -1349,6 +1349,7 @@ bool PathGenerator::NormalizeChargePath(float sampleDist, float maxStepUp, float
 
         dtPolyRef bestPoly = INVALID_POLYREF;
         uint32 bestPolyIndex = polyCursor;
+        bool bestPosOverPoly = false;
         float bestDist2D = std::numeric_limits<float>::max();
         float bestClosest[VERTEX_SIZE] = { 0.0f, 0.0f, 0.0f };
 
@@ -1358,18 +1359,21 @@ bool PathGenerator::NormalizeChargePath(float sampleDist, float maxStepUp, float
                 return;
 
             float closest[VERTEX_SIZE];
-            if (dtStatusFailed(_navMeshQuery->closestPointOnPoly(_pathPolyRefs[i], mmapPoint, closest, nullptr)))
+            bool posOverPoly = false;
+            if (dtStatusFailed(_navMeshQuery->closestPointOnPoly(_pathPolyRefs[i], mmapPoint, closest, &posOverPoly)))
                 return;
 
-            float const dx = closest[2] - point.x;
-            float const dy = closest[0] - point.y;
-            float const dist2D = dx * dx + dy * dy;
+            float const dist2D = posOverPoly
+                ? 0.0f
+                : ((closest[2] - point.x) * (closest[2] - point.x) +
+                   (closest[0] - point.y) * (closest[0] - point.y));
 
             if (dist2D < bestDist2D)
             {
                 bestDist2D = dist2D;
                 bestPoly = _pathPolyRefs[i];
                 bestPolyIndex = i;
+                bestPosOverPoly = posOverPoly;
                 dtVcopy(bestClosest, closest);
             }
         };
@@ -1406,17 +1410,17 @@ bool PathGenerator::NormalizeChargePath(float sampleDist, float maxStepUp, float
         polyCursor = bestPolyIndex;
 
         float height = point.z;
-        if (dtStatusSucceed(_navMeshQuery->getPolyHeight(bestPoly, mmapPoint, &height)))
-        {
-            point.z = height;
-            return true;
-        }
+        float const* heightPoint = bestPosOverPoly ? mmapPoint : bestClosest;
 
-        if (dtStatusFailed(_navMeshQuery->getPolyHeight(bestPoly, bestClosest, &height)))
+        if (dtStatusFailed(_navMeshQuery->getPolyHeight(bestPoly, heightPoint, &height)))
             return false;
 
-        point.x = bestClosest[2];
-        point.y = bestClosest[0];
+        if (!bestPosOverPoly)
+        {
+            point.x = bestClosest[2];
+            point.y = bestClosest[0];
+        }
+
         point.z = height;
         return true;
     };
