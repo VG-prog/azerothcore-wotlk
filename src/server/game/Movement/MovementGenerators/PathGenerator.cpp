@@ -1308,41 +1308,46 @@ void PathGenerator::ShortenPathUntilDist2D(G3D::Vector3 const& target, float dis
     SetActualEndPosition(_pathPoints.back());
 }
 
-bool PathGenerator::NormalizeChargePath(float sampleDist, float maxStepUp, float maxStepDown)
+bool PathGenerator::NormalizeChargePath(float sampleDist, float /*maxStepUp*/, float maxStepDown)
 {
     if (_pathPoints.size() < 2)
         return false;
 
-    sampleDist = std::max(0.25f, sampleDist);
-    maxStepUp = std::max(0.25f, maxStepUp);
-    maxStepDown = std::max(0.25f, maxStepDown);
+    sampleDist = std::max(0.35f, sampleDist);
+    maxStepDown = std::max(2.0f, maxStepDown);
 
     Movement::PointsArray normalized;
     normalized.reserve(_pathPoints.size() * 2);
 
-    auto appendPoint = [&](G3D::Vector3 point) -> bool
+    auto normalizeChargePoint = [&](G3D::Vector3 point) -> G3D::Vector3
+    {
+        G3D::Vector3 const before = point;
+        NormalizeAllowedPathPoint(_source, point);
+
+        // Do not let height normalization snap the charge to a much lower floor.
+        // That is the fall-through case: Detour path is on the slope, but ground
+        // correction finds a lower surface inside/under the terrain.
+        if (before.z - point.z > maxStepDown)
+            point.z = before.z;
+
+        return point;
+    };
+
+    auto appendPoint = [&](G3D::Vector3 point)
     {
         if (!normalized.empty())
         {
             if ((normalized.back() - point).squaredLength() < 0.0001f)
             {
                 normalized.back() = point;
-                return true;
+                return;
             }
-
-            float const dz = point.z - normalized.back().z;
-            if (dz > maxStepUp || -dz > maxStepDown)
-                return false;
         }
 
         normalized.push_back(point);
-        return true;
     };
 
-    G3D::Vector3 first = _pathPoints.front();
-    NormalizeAllowedPathPoint(_source, first);
-    if (!appendPoint(first))
-        return false;
+    appendPoint(normalizeChargePoint(_pathPoints.front()));
 
     for (std::size_t i = 1; i < _pathPoints.size(); ++i)
     {
@@ -1358,10 +1363,8 @@ bool PathGenerator::NormalizeChargePath(float sampleDist, float maxStepUp, float
             float const t = float(step) / float(steps);
             G3D::Vector3 point = from + delta * t;
 
-            NormalizeAllowedPathPoint(_source, point);
-
-            if (!appendPoint(point))
-                return false;
+            point = normalizeChargePoint(point);
+            appendPoint(point);
         }
     }
 
