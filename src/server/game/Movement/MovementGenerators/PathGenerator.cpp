@@ -1308,9 +1308,6 @@ bool PathGenerator::NormalizeChargePath(float sampleDist, float /*maxStepUp*/, f
     if (_pathPoints.size() < 2)
         return false;
 
-    if (!_navMeshQuery || !_polyLength)
-        return false;
-
     sampleDist = std::max(0.35f, sampleDist);
     maxStepDown = std::max(2.0f, maxStepDown);
 
@@ -1413,19 +1410,13 @@ bool PathGenerator::NormalizeChargePath(float sampleDist, float /*maxStepUp*/, f
         if (getNavmeshHeight(point))
             return point;
 
-        G3D::Vector3 fallback = point;
-        NormalizeAllowedPathPoint(_source, fallback);
+        NormalizeAllowedPathPoint(_source, point);
 
         // Fallback only: never let generic height correction send Charge to a much lower floor.
-        if (before.z - fallback.z > maxStepDown)
-            return before;
+        if (before.z - point.z > maxStepDown)
+            point = before;
 
-        // Keep Charge close to the Detour corridor. Generic ground correction is only
-        // accepted for mild Z adjustments.
-        if (std::fabs(fallback.z - before.z) <= 0.75f)
-            return fallback;
-
-        return before;
+        return point;
     };
 
     auto appendPoint = [&](G3D::Vector3 point)
