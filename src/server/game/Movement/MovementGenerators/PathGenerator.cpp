@@ -1386,18 +1386,30 @@ bool PathGenerator::NormalizeChargePath(float sampleDist, float maxStepUp, float
 
         // Fast path: most Charge samples stay on the current/next corridor polys.
         // If this gives an exact hit, no full corridor scan is needed.
-        uint32 const localBegin = polyCursor > CHARGE_POLY_LOOKBEHIND ? polyCursor - CHARGE_POLY_LOOKBEHIND : 0;
-        uint32 const localEnd = std::min<uint32>(_polyLength, polyCursor + CHARGE_POLY_LOOKAHEAD);
-        scanRange(localBegin, localEnd);
+        uint32 const forwardEnd = std::min<uint32>(_polyLength, polyCursor + CHARGE_POLY_LOOKAHEAD);
+
+        // Prefer current/forward corridor first. This avoids choosing a previous poly
+        // on shared edges when both polygons report posOverPoly.
+        scanRange(polyCursor, forwardEnd);
+
+        if (bestPoly == INVALID_POLYREF || bestDist2D > CHARGE_CORRIDOR_EXACT_DIST2D)
+        {
+            // Small look-behind recovery for portal/border precision, but only after
+            // current/forward polys failed to give an exact or near-exact match.
+            uint32 const backBegin = polyCursor > CHARGE_POLY_LOOKBEHIND ? polyCursor - CHARGE_POLY_LOOKBEHIND : 0;
+            scanRange(backBegin, polyCursor);
+        }
 
         if (bestPoly == INVALID_POLYREF || bestDist2D > CHARGE_CORRIDOR_EXACT_DIST2D)
         {
             // Full forward scan preserves Detour corridor order and quality.
-            scanRange(polyCursor, _polyLength);
+            scanRange(forwardEnd, _polyLength);
+        }
 
-            // Rare recovery: if the cursor advanced too aggressively, allow previous corridor polys.
-            if (bestPoly == INVALID_POLYREF || bestDist2D > CHARGE_CORRIDOR_MAX_DIST2D)
-                scanRange(0, polyCursor);
+        if (bestPoly == INVALID_POLYREF || bestDist2D > CHARGE_CORRIDOR_MAX_DIST2D)
+        {
+            // Rare recovery: allow older corridor polys only if forward search failed.
+            scanRange(0, polyCursor);
         }
 
         if (bestPoly == INVALID_POLYREF)
@@ -1407,7 +1419,7 @@ bool PathGenerator::NormalizeChargePath(float sampleDist, float maxStepUp, float
         if (bestDist2D > CHARGE_CORRIDOR_MAX_DIST2D)
             return false;
 
-        polyCursor = bestPolyIndex;
+        polyCursor = std::max(polyCursor, bestPolyIndex);
 
         float height = point.z;
         float const* heightPoint = bestPosOverPoly ? mmapPoint : bestClosest;
