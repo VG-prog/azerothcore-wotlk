@@ -1311,8 +1311,12 @@ bool PathGenerator::NormalizePathToCorridor(PathGenerator::PathCorridorNormalize
     if (!_navMeshQuery || !_polyLength)
         return false;
 
-    if (GetPathType() & PATHFIND_NOT_USING_PATH)
+    PathType const pathType = GetPathType();
+    if (pathType == PATHFIND_BLANK ||
+        (pathType & (PATHFIND_NOPATH | PATHFIND_INCOMPLETE | PATHFIND_SHORT | PATHFIND_SHORTCUT | PATHFIND_NOT_USING_PATH)))
+    {
         return false;
+    }
 
     float sampleDist = std::max(0.35f, options.SampleDist);
     float const maxStepUp = std::max(0.25f, options.MaxStepUp);
