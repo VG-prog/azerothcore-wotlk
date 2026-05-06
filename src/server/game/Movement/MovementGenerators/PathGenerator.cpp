@@ -1303,12 +1303,13 @@ void PathGenerator::ShortenPathUntilDist2D(G3D::Vector3 const& target, float dis
     SetActualEndPosition(_pathPoints.back());
 }
 
-bool PathGenerator::NormalizeChargePath(float sampleDist, float /*maxStepUp*/, float maxStepDown)
+bool PathGenerator::NormalizeChargePath(float sampleDist, float maxStepUp, float maxStepDown)
 {
     if (_pathPoints.size() < 2)
         return false;
 
     sampleDist = std::max(0.35f, sampleDist);
+    maxStepUp = std::max(0.25f, maxStepUp);
     maxStepDown = std::max(2.0f, maxStepDown);
 
     float totalDist2d = 0.0f;
@@ -1412,8 +1413,11 @@ bool PathGenerator::NormalizeChargePath(float sampleDist, float /*maxStepUp*/, f
 
         NormalizeAllowedPathPoint(_source, point);
 
-        // Fallback only: never let generic height correction send Charge to a much lower floor.
+        // Fallback only: never let generic height correction send Charge to a much lower floor
+        // or snap it upward to an unrelated ledge. Detour height is authoritative when available.
         if (before.z - point.z > maxStepDown)
+            point = before;
+        else if (point.z - before.z > maxStepUp)
             point = before;
 
         return point;

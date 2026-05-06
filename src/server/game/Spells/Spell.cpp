@@ -6410,9 +6410,6 @@ SpellCastResult Spell::CheckCast(bool strict, uint32* /*param1*/, uint32* /*para
 
                         if (target->GetPositionZ() - chargeEnd.z > std::max(3.0f, m_caster->GetCollisionHeight()))
                             return SPELL_FAILED_NOPATH;
-
-                        if (m_preGeneratedPath->IsInvalidDestinationZ(target))
-                            return SPELL_FAILED_NOPATH;
                     }
 
                     if (Player* player = m_caster->ToPlayer())

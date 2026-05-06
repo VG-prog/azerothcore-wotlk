@@ -4959,32 +4959,14 @@ void Spell::EffectCharge(SpellEffIndex /*effIndex*/)
                 return;
             }
 
-            float const stopDist = std::max(
-                unitTarget->GetCombatReach(),
-                m_caster->GetGroundProbeRadius() + unitTarget->GetGroundProbeRadius() + 0.05f);
-
-            G3D::Vector3 const targetPos(
-                unitTarget->GetPositionX(),
-                unitTarget->GetPositionY(),
-                unitTarget->GetPositionZ());
-
-            m_preGeneratedPath->ShortenPathUntilDist2D(targetPos, stopDist);
-
             if (m_preGeneratedPath->GetPath().size() < 2)
                 return;
 
-            float const maxChargeStepUp = std::max(1.50f, m_caster->GetCollisionHeight() * 0.75f);
-            float const maxChargeStepDown = std::max(3.00f, m_caster->GetCollisionHeight() * 1.50f);
-
-            if (!m_preGeneratedPath->NormalizeChargePath(
-                0.35f,
-                maxChargeStepUp,
-                maxChargeStepDown))
-            {
-                return;
-            }
-
             G3D::Vector3 const& chargeEnd = m_preGeneratedPath->GetActualEndPosition();
+
+            float const stopDist = std::max(
+                unitTarget->GetCombatReach(),
+                m_caster->GetGroundProbeRadius() + unitTarget->GetGroundProbeRadius() + 0.05f);
 
             float const dx = chargeEnd.x - unitTarget->GetPositionX();
             float const dy = chargeEnd.y - unitTarget->GetPositionY();
