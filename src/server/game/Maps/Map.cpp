@@ -1272,13 +1272,16 @@ float Map::GetVMapHeightAccurate(float x, float y, float z, float radius, float 
     return ComputeFootprintHeightFromNormal(height, normal, radius, yaw, effectiveBlend, clamp);
 }
 
-float Map::GetHeightAccurate(float x, float y, float z, float radius, bool checkVMap /*= true*/, float maxSearchDist /*= DEFAULT_HEIGHT_SEARCH*/) const
+float Map::GetHeightAccurate(float x, float y, float z, float radius, bool checkVMap, float maxSearchDist) const
 {
-    return GetHeightAccurate(x, y, z, radius, 0.0f, checkVMap, maxSearchDist);
+    return GetHeightAccurate(x, y, z, radius, 0.0f, checkVMap, maxSearchDist, nullptr);
 }
 
-float Map::GetHeightAccurate(float x, float y, float z, float radius, float yaw, bool checkVMap /*= true*/, float maxSearchDist /*= DEFAULT_HEIGHT_SEARCH*/) const
+float Map::GetHeightAccurate(float x, float y, float z, float radius, float yaw, bool checkVMap, float maxSearchDist, float* baseHeight) const
 {
+    if (baseHeight)
+        *baseHeight = VMAP_INVALID_HEIGHT_VALUE;
+
     // find raw .map surface under Z coordinates
     float mapHeight = VMAP_INVALID_HEIGHT_VALUE;
     float const gridBaseHeight = GetGridHeight(x, y);
@@ -1325,13 +1328,31 @@ float Map::GetHeightAccurate(float x, float y, float z, float radius, float yaw,
             // Selection must use point/base heights, not footprint-lifted heights.
             // Otherwise a steep terrain triangle can incorrectly outrank a VMAP surface above it.
             if (vmapBaseHeight > gridBaseHeight || std::fabs(gridBaseHeight - z) > std::fabs(vmapBaseHeight - z))
-                 return vmapHeight;
+            {
+                if (baseHeight)
+                    *baseHeight = vmapBaseHeight;
+
+                return vmapHeight;
+            }
             else
+            {
+                if (baseHeight)
+                    *baseHeight = gridBaseHeight;
+
                 return mapHeight;                           // better use .map surface height
+            }
         }
         else
+        {
+            if (baseHeight)
+                *baseHeight = vmapBaseHeight;
+
             return vmapHeight;                              // we have only vmapHeight (if have)
+        }
     }
+
+    if (baseHeight && mapHeight > INVALID_HEIGHT)
+        *baseHeight = gridBaseHeight;
 
     return mapHeight;                               // explicitly use map data
 }
@@ -1763,8 +1784,8 @@ float Map::GetHeightAccurate(uint32 phasemask, float x, float y, float z, float 
 float Map::GetHeightAccurate(uint32 phasemask, float x, float y, float z, float radius, float yaw,
                              bool vmap/*=true*/, float maxSearchDist /*= DEFAULT_HEIGHT_SEARCH*/) const
 {
-    const float hMapMix = GetHeightAccurate(x, y, z, radius, yaw, vmap, maxSearchDist);
-    const float hMapMixBase = GetHeight(x, y, z, vmap, maxSearchDist);
+    float hMapMixBase = VMAP_INVALID_HEIGHT_VALUE;
+    float const hMapMix = GetHeightAccurate(x, y, z, radius, yaw, vmap, maxSearchDist, &hMapMixBase);
 
     float hDyn;
     float hDynBase;

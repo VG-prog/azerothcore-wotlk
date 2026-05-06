@@ -1381,7 +1381,14 @@ bool PathGenerator::NormalizeChargePath(float sampleDist, float maxStepUp, float
         auto scanRange = [&](uint32 begin, uint32 end)
         {
             for (uint32 i = begin; i < end; ++i)
+            {
                 considerPoly(i);
+
+                // Exact/near-exact hit on current forward corridor is already ideal.
+                // Keep the first match to preserve corridor order on shared poly edges.
+                if (bestDist2D <= CHARGE_CORRIDOR_EXACT_DIST2D)
+                    break;
+            }
         };
 
         // Fast path: most Charge samples stay on the current/next corridor polys.
