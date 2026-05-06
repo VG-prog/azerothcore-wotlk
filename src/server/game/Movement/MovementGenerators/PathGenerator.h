@@ -122,6 +122,18 @@ class PathGenerator
             bool PreserveCorridorOrder = true;
             bool SnapSpecialMapGeometry = true;
             bool AllowFallbackToAllowedPositionZ = true;
+
+            // Prevent tiny Detour border corrections from becoming visible zigzags.
+            // Squared 2D distance. If a sampled point is only this far outside the poly,
+            // keep its original XY and only use the corridor for height.
+            float PreserveXYDist2D = 0.20f * 0.20f;
+
+            // Only for sampled paths, mainly Charge.
+            // Samples are still validated densely, but the final spline is simplified.
+            bool SimplifySampledOutput = false;
+            float MaxOutputSegmentLength2D = 2.00f;
+            float MaxOutputDeviation2D = 0.25f;
+            float MaxOutputDeviationZ = 0.40f;
         };
 
         [[nodiscard]] static PathCorridorNormalizeOptions GetDefaultCorridorNormalizeOptions(

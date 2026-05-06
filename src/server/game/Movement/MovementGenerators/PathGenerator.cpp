@@ -1446,7 +1446,7 @@ bool PathGenerator::NormalizePathToCorridor(PathGenerator::PathCorridorNormalize
             if (dtStatusFailed(_navMeshQuery->getPolyHeight(bestPoly, heightPoint, &height)))
                 return false;
 
-            if (!bestPosOverPoly)
+            if (!bestPosOverPoly && bestDist2D > options.PreserveXYDist2D)
             {
                 point.x = bestClosest[2];
                 point.y = bestClosest[0];
@@ -1536,6 +1536,98 @@ bool PathGenerator::NormalizePathToCorridor(PathGenerator::PathCorridorNormalize
         previous = normalized.back();
     }
 
+        if (options.SimplifySampledOutput &&
+        options.Mode == PathCorridorNormalizeMode::Sampled &&
+        normalized.size() > 2)
+    {
+        float const maxSegmentDist2D = std::max(0.35f, options.MaxOutputSegmentLength2D);
+        float const maxSegmentDist2DSq = maxSegmentDist2D * maxSegmentDist2D;
+        float const maxDeviation2D = std::max(0.0f, options.MaxOutputDeviation2D);
+        float const maxDeviation2DSq = maxDeviation2D * maxDeviation2D;
+        float const maxDeviationZ = std::max(0.0f, options.MaxOutputDeviationZ);
+
+        auto dist2dSq = [](G3D::Vector3 const& a, G3D::Vector3 const& b) -> float
+        {
+            float const dx = a.x - b.x;
+            float const dy = a.y - b.y;
+            return dx * dx + dy * dy;
+        };
+
+        auto segmentFitsDensePath = [&](std::size_t begin, std::size_t end) -> bool
+        {
+            if (end <= begin + 1)
+                return true;
+
+            G3D::Vector3 const& from = normalized[begin];
+            G3D::Vector3 const& to = normalized[end];
+
+            float const vx = to.x - from.x;
+            float const vy = to.y - from.y;
+            float const len2 = vx * vx + vy * vy;
+
+            if (len2 > maxSegmentDist2DSq)
+                return false;
+
+            for (std::size_t i = begin + 1; i < end; ++i)
+            {
+                G3D::Vector3 const& point = normalized[i];
+
+                float t = 0.0f;
+                if (len2 > 1.0e-6f)
+                    t = ((point.x - from.x) * vx + (point.y - from.y) * vy) / len2;
+
+                t = std::clamp(t, 0.0f, 1.0f);
+
+                float const ix = from.x + vx * t;
+                float const iy = from.y + vy * t;
+                float const iz = from.z + (to.z - from.z) * t;
+
+                float const dx = point.x - ix;
+                float const dy = point.y - iy;
+
+                if (dx * dx + dy * dy > maxDeviation2DSq)
+                    return false;
+
+                if (std::fabs(point.z - iz) > maxDeviationZ)
+                    return false;
+            }
+
+            return true;
+        };
+
+        Movement::PointsArray simplified;
+        simplified.reserve(normalized.size());
+        simplified.push_back(normalized.front());
+
+        std::size_t anchor = 0;
+        while (anchor + 1 < normalized.size())
+        {
+            std::size_t maxCandidate = anchor + 1;
+
+            while (maxCandidate + 1 < normalized.size() &&
+                   dist2dSq(normalized[anchor], normalized[maxCandidate + 1]) <= maxSegmentDist2DSq)
+            {
+                ++maxCandidate;
+            }
+
+            std::size_t chosen = anchor + 1;
+
+            for (std::size_t candidate = maxCandidate; candidate > anchor + 1; --candidate)
+            {
+                if (segmentFitsDensePath(anchor, candidate))
+                {
+                    chosen = candidate;
+                    break;
+                }
+            }
+
+            simplified.push_back(normalized[chosen]);
+            anchor = chosen;
+        }
+
+        normalized = std::move(simplified);
+    }
+
     if (normalized.size() < 2)
         return false;
 
@@ -1568,6 +1660,23 @@ PathGenerator::PathCorridorNormalizeOptions PathGenerator::GetDefaultCorridorNor
     options.PreserveCorridorOrder = true;
     options.SnapSpecialMapGeometry = true;
     options.AllowFallbackToAllowedPositionZ = true;
+
+    options.PreserveXYDist2D = 0.20f * 0.20f;
+
+    if (mode == PathCorridorNormalizeMode::Sampled)
+    {
+        options.SimplifySampledOutput = true;
+        options.MaxOutputSegmentLength2D = 2.00f;
+        options.MaxOutputDeviation2D = 0.25f;
+        options.MaxOutputDeviationZ = 0.40f;
+    }
+    else
+    {
+        options.SimplifySampledOutput = false;
+        options.MaxOutputSegmentLength2D = 2.00f;
+        options.MaxOutputDeviation2D = 0.25f;
+        options.MaxOutputDeviationZ = 0.40f;
+    }
 
     return options;
 }
