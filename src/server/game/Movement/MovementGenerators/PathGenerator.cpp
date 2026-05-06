@@ -1236,8 +1236,9 @@ void PathGenerator::ShortenPathUntilDist2D(G3D::Vector3 const& target, float dis
             return dx * dx + dy * dy;
         };
 
-    if (dist2dSq(_pathPoints.front(), target) < distSq)
+    if (dist2dSq(_pathPoints.front(), target) <= distSq)
     {
+        _pathPoints.resize(1);
         SetActualEndPosition(_pathPoints.front());
         return;
     }
@@ -1311,12 +1312,8 @@ bool PathGenerator::NormalizePathToCorridor(PathGenerator::PathCorridorNormalize
     if (!_navMeshQuery || !_polyLength)
         return false;
 
-    PathType const pathType = GetPathType();
-    if (pathType == PATHFIND_BLANK ||
-        (pathType & (PATHFIND_NOPATH | PATHFIND_INCOMPLETE | PATHFIND_SHORT | PATHFIND_SHORTCUT | PATHFIND_NOT_USING_PATH)))
-    {
+    if (!IsPathTypeCorridorNormalizable(GetPathType()))
         return false;
-    }
 
     float sampleDist = std::max(0.35f, options.SampleDist);
     float const maxStepUp = std::max(0.25f, options.MaxStepUp);
@@ -1435,10 +1432,9 @@ bool PathGenerator::NormalizePathToCorridor(PathGenerator::PathCorridorNormalize
             if (bestDist2D > maxCorridorDist2D)
                 return false;
 
-            if (options.PreserveCorridorOrder)
-                polyCursor = std::max(polyCursor, bestPolyIndex);
-            else
-                polyCursor = bestPolyIndex;
+            uint32 const nextPolyCursor = options.PreserveCorridorOrder
+                ? std::max(polyCursor, bestPolyIndex)
+                : bestPolyIndex;
 
             float height = point.z;
             float const* heightPoint = bestPosOverPoly ? mmapPoint : bestClosest;
@@ -1453,6 +1449,7 @@ bool PathGenerator::NormalizePathToCorridor(PathGenerator::PathCorridorNormalize
             }
 
             point.z = height;
+            polyCursor = nextPolyCursor;
             return true;
         };
 
@@ -1679,6 +1676,19 @@ PathGenerator::PathCorridorNormalizeOptions PathGenerator::GetDefaultCorridorNor
     }
 
     return options;
+}
+
+bool PathGenerator::IsPathTypeCorridorNormalizable(PathType pathType)
+{
+    if (pathType == PATHFIND_BLANK)
+        return false;
+
+    return !(pathType & (
+        PATHFIND_NOPATH |
+        PATHFIND_INCOMPLETE |
+        PATHFIND_SHORT |
+        PATHFIND_SHORTCUT |
+        PATHFIND_NOT_USING_PATH));
 }
 
 bool PathGenerator::NormalizeChargePath(float sampleDist, float maxStepUp, float maxStepDown)

@@ -6370,7 +6370,7 @@ SpellCastResult Spell::CheckCast(bool strict, uint32* /*param1*/, uint32* /*para
                         bool result = m_preGeneratedPath->CalculatePath(target->GetPositionX(), target->GetPositionY(), target->GetPositionZ(), false);
 
                         PathType const chargePathType = m_preGeneratedPath->GetPathType();
-                        if (!result || (chargePathType & (PATHFIND_NOPATH | PATHFIND_INCOMPLETE | PATHFIND_SHORT | PATHFIND_SHORTCUT | PATHFIND_NOT_USING_PATH)))
+                        if (!result || !PathGenerator::IsPathTypeCorridorNormalizable(chargePathType))
                             return SPELL_FAILED_NOPATH;
 
                         float const stopDist = std::max(

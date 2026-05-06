@@ -60,7 +60,7 @@ void PointMovementGenerator<T>::DoInitialize(T* unit)
         bool result = path.CalculatePath(i_x, i_y, i_z, _forceDestination);
         if (result && !(path.GetPathType() & PATHFIND_NOPATH) && path.GetPath().size() > 2)
         {
-            if (!(path.GetPathType() & (PATHFIND_NOPATH | PATHFIND_INCOMPLETE | PATHFIND_SHORT | PATHFIND_SHORTCUT | PATHFIND_NOT_USING_PATH)))
+            if (result && PathGenerator::IsPathTypeCorridorNormalizable(path.GetPathType()))
             {
                 PathGenerator::PathCorridorNormalizeOptions normalizeOptions =
                     PathGenerator::GetDefaultCorridorNormalizeOptions(unit, PathGenerator::PathCorridorNormalizeMode::ExistingPointsOnly);

@@ -131,7 +131,7 @@ bool ChaseMovementGenerator<T>::DispatchSplineToPosition(T* owner, float x, floa
     if (cutPath)
         i_path->ShortenPathUntilDist(G3D::Vector3(x, y, z), maxTarget);
 
-    if (!(i_path->GetPathType() & (PATHFIND_NOPATH | PATHFIND_INCOMPLETE | PATHFIND_SHORT | PATHFIND_SHORTCUT | PATHFIND_NOT_USING_PATH)))
+    if (success && PathGenerator::IsPathTypeCorridorNormalizable(i_path->GetPathType()))
     {
         PathGenerator::PathCorridorNormalizeOptions normalizeOptions =
             PathGenerator::GetDefaultCorridorNormalizeOptions(owner, PathGenerator::PathCorridorNormalizeMode::ExistingPointsOnly);
@@ -690,7 +690,7 @@ bool FollowMovementGenerator<T>::DoUpdate(T* owner, uint32 time_diff)
             return true;
         }
 
-        if (!(i_path->GetPathType() & (PATHFIND_NOPATH | PATHFIND_INCOMPLETE | PATHFIND_SHORT | PATHFIND_SHORTCUT | PATHFIND_NOT_USING_PATH)))
+        if (success && PathGenerator::IsPathTypeCorridorNormalizable(i_path->GetPathType()))
         {
             PathGenerator::PathCorridorNormalizeOptions normalizeOptions =
                 PathGenerator::GetDefaultCorridorNormalizeOptions(owner, PathGenerator::PathCorridorNormalizeMode::ExistingPointsOnly);

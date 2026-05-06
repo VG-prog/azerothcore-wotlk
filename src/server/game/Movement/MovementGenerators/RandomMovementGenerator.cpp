@@ -165,7 +165,7 @@ void RandomMovementGenerator<Creature>::_setRandomLocation(Creature* creature)
                     return;
                 }
 
-                if (result && !(_pathGenerator->GetPathType() & (PATHFIND_NOPATH | PATHFIND_INCOMPLETE | PATHFIND_SHORT | PATHFIND_SHORTCUT | PATHFIND_NOT_USING_PATH)))
+                if (result && PathGenerator::IsPathTypeCorridorNormalizable(_pathGenerator->GetPathType()))
                 {
                     PathGenerator::PathCorridorNormalizeOptions normalizeOptions =
                         PathGenerator::GetDefaultCorridorNormalizeOptions(creature, PathGenerator::PathCorridorNormalizeMode::ExistingPointsOnly);

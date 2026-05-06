@@ -140,6 +140,8 @@ class PathGenerator
             WorldObject const* source,
             PathCorridorNormalizeMode mode = PathCorridorNormalizeMode::ExistingPointsOnly);
 
+        [[nodiscard]] static bool IsPathTypeCorridorNormalizable(PathType pathType);
+
         bool NormalizePathToCorridor(PathCorridorNormalizeOptions const& options);
         bool NormalizeChargePath(float sampleDist, float maxStepUp, float maxStepDown);
 

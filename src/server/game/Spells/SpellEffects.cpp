@@ -4957,7 +4957,7 @@ void Spell::EffectCharge(SpellEffIndex /*effIndex*/)
         else
         {
             PathType const chargePathType = m_preGeneratedPath->GetPathType();
-            if (chargePathType & (PATHFIND_NOPATH | PATHFIND_INCOMPLETE | PATHFIND_SHORT | PATHFIND_SHORTCUT | PATHFIND_NOT_USING_PATH))
+            if (!PathGenerator::IsPathTypeCorridorNormalizable(chargePathType))
                 return;
 
             if (m_preGeneratedPath->GetPath().size() < 2)

@@ -163,12 +163,12 @@ void FleeingMovementGenerator<T>::SetTargetLocation(T* owner)
 
     _invalidPathsCount = 0;
 
-    if (result && !(_path->GetPathType() & (PATHFIND_NOPATH | PATHFIND_INCOMPLETE | PATHFIND_SHORT | PATHFIND_SHORTCUT | PATHFIND_NOT_USING_PATH)))
+    if (result && PathGenerator::IsPathTypeCorridorNormalizable(_path.GetPathType()))
     {
         PathGenerator::PathCorridorNormalizeOptions normalizeOptions =
             PathGenerator::GetDefaultCorridorNormalizeOptions(owner, PathGenerator::PathCorridorNormalizeMode::ExistingPointsOnly);
 
-        _path->NormalizePathToCorridor(normalizeOptions);
+        _path.NormalizePathToCorridor(normalizeOptions);
     }
 
     Movement::MoveSplineInit init(owner);
