@@ -1506,34 +1506,43 @@ bool PathGenerator::NormalizePathToCorridor(PathGenerator::PathCorridorNormalize
         return true;
     };
 
-    auto appendPoint = [&](G3D::Vector3 point)
+    auto appendPoint = [&](G3D::Vector3 point) -> bool
     {
         if (normalized.empty())
         {
             normalized.push_back(point);
-            return;
+            return true;
         }
 
         if ((normalized.back() - point).squaredLength() < 0.0001f)
         {
             normalized.back() = point;
-            return;
+            return true;
+        }
+
+        if (options.Mode == PathCorridorNormalizeMode::Sampled)
+        {
+            float const dz = point.z - normalized.back().z;
+            if (dz > maxStepUp || -dz > maxStepDown)
+                return false;
         }
 
         if (normalized.size() >= MAX_POINT_PATH_LENGTH)
         {
             normalized.back() = point;
-            return;
+            return true;
         }
 
         normalized.push_back(point);
+        return true;
     };
 
     G3D::Vector3 previous = _pathPoints.front();
     if (!normalizePoint(previous))
         return false;
 
-    appendPoint(previous);
+    if (!appendPoint(previous))
+        return false;
 
     for (std::size_t i = 1; i < _pathPoints.size(); ++i)
     {
@@ -1554,7 +1563,8 @@ bool PathGenerator::NormalizePathToCorridor(PathGenerator::PathCorridorNormalize
                 if (!normalizePoint(point))
                     return false;
 
-                appendPoint(point);
+                if (!appendPoint(point))
+                    return false;
             }
         }
         else
@@ -1563,7 +1573,8 @@ bool PathGenerator::NormalizePathToCorridor(PathGenerator::PathCorridorNormalize
             if (!normalizePoint(point))
                 return false;
 
-            appendPoint(point);
+            if (!appendPoint(point))
+                return false;
         }
 
         previous = normalized.back();
