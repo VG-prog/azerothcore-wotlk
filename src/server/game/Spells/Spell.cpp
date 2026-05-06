@@ -6368,9 +6368,9 @@ SpellCastResult Spell::CheckCast(bool strict, uint32* /*param1*/, uint32* /*para
 
                         // first try with raycast, if it fails fall back to normal path
                         bool result = m_preGeneratedPath->CalculatePath(target->GetPositionX(), target->GetPositionY(), target->GetPositionZ(), false);
-                        if (m_preGeneratedPath->GetPathType() & PATHFIND_SHORT)
-                            return SPELL_FAILED_NOPATH;
-                        else if (!result || m_preGeneratedPath->GetPathType() & (PATHFIND_NOPATH | PATHFIND_INCOMPLETE))
+
+                        PathType const chargePathType = m_preGeneratedPath->GetPathType();
+                        if (!result || (chargePathType & (PATHFIND_NOPATH | PATHFIND_INCOMPLETE | PATHFIND_SHORT | PATHFIND_SHORTCUT | PATHFIND_NOT_USING_PATH)))
                             return SPELL_FAILED_NOPATH;
 
                         float const stopDist = std::max(
