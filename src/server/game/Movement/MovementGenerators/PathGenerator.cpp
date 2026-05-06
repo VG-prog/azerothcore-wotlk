@@ -1312,6 +1312,11 @@ bool PathGenerator::NormalizeChargePath(float sampleDist, float maxStepUp, float
     maxStepUp = std::max(0.25f, maxStepUp);
     maxStepDown = std::max(2.0f, maxStepDown);
 
+    constexpr float CHARGE_CORRIDOR_MAX_DIST2D = 4.0f * 4.0f;
+    constexpr float CHARGE_CORRIDOR_EXACT_DIST2D = 0.0001f;
+    constexpr uint32 CHARGE_POLY_LOOKAHEAD = 8;
+    constexpr uint32 CHARGE_POLY_LOOKBEHIND = 2;
+
     float totalDist2d = 0.0f;
     for (std::size_t i = 1; i < _pathPoints.size(); ++i)
     {
@@ -1327,9 +1332,13 @@ bool PathGenerator::NormalizeChargePath(float sampleDist, float maxStepUp, float
     }
 
     Movement::PointsArray normalized;
-    normalized.reserve(_pathPoints.size() * 4);
+    uint32 const estimatedPointCount = totalDist2d > 0.0f
+        ? uint32(std::ceil(totalDist2d / sampleDist)) + 2u
+        : uint32(_pathPoints.size());
+    normalized.reserve(std::min<uint32>(MAX_POINT_PATH_LENGTH, std::max<uint32>(estimatedPointCount, uint32(_pathPoints.size())))); 
 
     uint32 polyCursor = 0;
+    bool const snapBladeEdgeArenaRopes = _source->GetMapId() == MAP_BLADES_EDGE_ARENA;
 
     auto getNavmeshHeight = [&](G3D::Vector3& point) -> bool
     {
@@ -1365,22 +1374,33 @@ bool PathGenerator::NormalizeChargePath(float sampleDist, float maxStepUp, float
             }
         };
 
-        // Prefer forward progress along the already calculated Detour corridor.
-        for (uint32 i = polyCursor; i < _polyLength; ++i)
-            considerPoly(i);
-
-        // Fallback only if forward corridor search failed.
-        if (bestPoly == INVALID_POLYREF)
+        auto scanRange = [&](uint32 begin, uint32 end)
         {
-            for (uint32 i = 0; i < polyCursor; ++i)
+            for (uint32 i = begin; i < end; ++i)
                 considerPoly(i);
+        };
+
+        // Fast path: most Charge samples stay on the current/next corridor polys.
+        // If this gives an exact hit, no full corridor scan is needed.
+        uint32 const localBegin = polyCursor > CHARGE_POLY_LOOKBEHIND ? polyCursor - CHARGE_POLY_LOOKBEHIND : 0;
+        uint32 const localEnd = std::min<uint32>(_polyLength, polyCursor + CHARGE_POLY_LOOKAHEAD);
+        scanRange(localBegin, localEnd);
+
+        if (bestPoly == INVALID_POLYREF || bestDist2D > CHARGE_CORRIDOR_EXACT_DIST2D)
+        {
+            // Full forward scan preserves Detour corridor order and quality.
+            scanRange(polyCursor, _polyLength);
+
+            // Rare recovery: if the cursor advanced too aggressively, allow previous corridor polys.
+            if (bestPoly == INVALID_POLYREF || bestDist2D > CHARGE_CORRIDOR_MAX_DIST2D)
+                scanRange(0, polyCursor);
         }
 
         if (bestPoly == INVALID_POLYREF)
             return false;
 
         // The charge point should stay near its own path corridor.
-        if (bestDist2D > 4.0f * 4.0f)
+        if (bestDist2D > CHARGE_CORRIDOR_MAX_DIST2D)
             return false;
 
         polyCursor = bestPolyIndex;
@@ -1403,7 +1423,7 @@ bool PathGenerator::NormalizeChargePath(float sampleDist, float maxStepUp, float
 
     auto normalizeChargePoint = [&](G3D::Vector3 point) -> G3D::Vector3
     {
-        if (_source->GetMapId() == MAP_BLADES_EDGE_ARENA && TrySnapToBladeEdgeArenaRope(point))
+        if (snapBladeEdgeArenaRopes && TrySnapToBladeEdgeArenaRope(point))
             return point;
 
         G3D::Vector3 const before = point;
@@ -1467,7 +1487,7 @@ bool PathGenerator::NormalizeChargePath(float sampleDist, float maxStepUp, float
             appendPoint(point);
         }
 
-        previous = normalizeChargePoint(to);
+        previous = normalized.back();
     }
 
     if (normalized.size() < 2)
