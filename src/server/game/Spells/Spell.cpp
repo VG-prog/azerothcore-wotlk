@@ -6391,7 +6391,7 @@ SpellCastResult Spell::CheckCast(bool strict, uint32* /*param1*/, uint32* /*para
                         float const maxChargeStepDown = std::max(3.00f, m_caster->GetCollisionHeight() * 1.50f);
 
                         if (!m_preGeneratedPath->NormalizeChargePath(
-                            0.60f,
+                            0.35f,
                             maxChargeStepUp,
                             maxChargeStepDown))
                         {

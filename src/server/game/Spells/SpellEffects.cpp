@@ -4977,7 +4977,7 @@ void Spell::EffectCharge(SpellEffIndex /*effIndex*/)
             float const maxChargeStepDown = std::max(3.00f, m_caster->GetCollisionHeight() * 1.50f);
 
             if (!m_preGeneratedPath->NormalizeChargePath(
-                0.60f,
+                0.35f,
                 maxChargeStepUp,
                 maxChargeStepDown))
             {

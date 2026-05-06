@@ -225,7 +225,7 @@ dtPolyRef PathGenerator::GetPathPolyByPosition(dtPolyRef const* polyPath, uint32
         *distance = dtMathSqrtf(minDist);
     }
 
-    return (minDist < 3.0f) ? nearestPoly : INVALID_POLYREF;
+    return (minDist < 3.0f * 3.0f) ? nearestPoly : INVALID_POLYREF;
 }
 
 dtPolyRef PathGenerator::GetPolyByLocation(float const* point, float* distance) const
@@ -1053,8 +1053,21 @@ dtStatus PathGenerator::FindSmoothPath(float const* startPos, float const* endPo
                 }
                 // Move position at the other side of the off-mesh link.
                 dtVcopy(iterPos, connectionEndPos);
-                if (dtStatusFailed(_navMeshQuery->getPolyHeight(polys[0], iterPos, &iterPos[1])))
-                    return DT_FAILURE;
+
+                if (npolys && polys[0] != INVALID_POLYREF)
+                {
+                    if (dtStatusFailed(_navMeshQuery->getPolyHeight(polys[0], iterPos, &iterPos[1])))
+                    {
+                        float closest[VERTEX_SIZE];
+                        if (dtStatusSucceed(_navMeshQuery->closestPointOnPolyBoundary(polys[0], iterPos, closest)) &&
+                            dtStatusSucceed(_navMeshQuery->getPolyHeight(polys[0], closest, &iterPos[1])))
+                        {
+                            iterPos[0] = closest[0];
+                            iterPos[2] = closest[2];
+                        }
+                    }
+                }
+
                 iterPos[1] += 0.5f;
             }
         }
@@ -1284,24 +1297,6 @@ void PathGenerator::ShortenPathUntilDist2D(G3D::Vector3 const& target, float dis
     t = std::clamp(t, 0.0f, 1.0f);
 
     G3D::Vector3 newEnd = from + (to - from) * t;
-    G3D::Vector3 const beforeSnap = newEnd;
-
-    NormalizeAllowedPathPoint(_source, newEnd);
-
-    // If the endpoint snapped to a much lower floor, we are probably at an edge/void.
-    // Use the previous safe path point instead of charging under the target.
-    float const maxSnapDown = std::max(2.0f, _source->GetCollisionHeight());
-
-    if (beforeSnap.z - newEnd.z > maxSnapDown)
-    {
-        G3D::Vector3 safeEnd = from;
-        NormalizeAllowedPathPoint(_source, safeEnd);
-
-        _pathPoints[i - 1] = safeEnd;
-        _pathPoints.resize(i);
-        SetActualEndPosition(_pathPoints.back());
-        return;
-    }
 
     _pathPoints[i] = newEnd;
     _pathPoints.resize(i + 1);
@@ -1316,42 +1311,143 @@ bool PathGenerator::NormalizeChargePath(float sampleDist, float /*maxStepUp*/, f
     sampleDist = std::max(0.35f, sampleDist);
     maxStepDown = std::max(2.0f, maxStepDown);
 
+    float totalDist2d = 0.0f;
+    for (std::size_t i = 1; i < _pathPoints.size(); ++i)
+    {
+        float const dx = _pathPoints[i].x - _pathPoints[i - 1].x;
+        float const dy = _pathPoints[i].y - _pathPoints[i - 1].y;
+        totalDist2d += std::sqrt(dx * dx + dy * dy);
+    }
+
+    if (totalDist2d > 0.0f)
+    {
+        float const minSafeSampleDist = totalDist2d / float(MAX_POINT_PATH_LENGTH - 1);
+        sampleDist = std::max(sampleDist, minSafeSampleDist);
+    }
+
     Movement::PointsArray normalized;
-    normalized.reserve(_pathPoints.size() * 2);
+    normalized.reserve(_pathPoints.size() * 4);
+
+    uint32 polyCursor = 0;
+
+    auto getNavmeshHeight = [&](G3D::Vector3& point) -> bool
+    {
+        if (!_navMeshQuery || !_polyLength)
+            return false;
+
+        float mmapPoint[VERTEX_SIZE] = { point.y, point.z, point.x };
+
+        dtPolyRef bestPoly = INVALID_POLYREF;
+        uint32 bestPolyIndex = polyCursor;
+        float bestDist2D = std::numeric_limits<float>::max();
+        float bestClosest[VERTEX_SIZE] = { 0.0f, 0.0f, 0.0f };
+
+        auto considerPoly = [&](uint32 i)
+        {
+            if (_pathPolyRefs[i] == INVALID_POLYREF)
+                return;
+
+            float closest[VERTEX_SIZE];
+            if (dtStatusFailed(_navMeshQuery->closestPointOnPoly(_pathPolyRefs[i], mmapPoint, closest, nullptr)))
+                return;
+
+            float const dx = closest[2] - point.x;
+            float const dy = closest[0] - point.y;
+            float const dist2D = dx * dx + dy * dy;
+
+            if (dist2D < bestDist2D)
+            {
+                bestDist2D = dist2D;
+                bestPoly = _pathPolyRefs[i];
+                bestPolyIndex = i;
+                dtVcopy(bestClosest, closest);
+            }
+        };
+
+        // Prefer forward progress along the already calculated Detour corridor.
+        for (uint32 i = polyCursor; i < _polyLength; ++i)
+            considerPoly(i);
+
+        // Fallback only if forward corridor search failed.
+        if (bestPoly == INVALID_POLYREF)
+        {
+            for (uint32 i = 0; i < polyCursor; ++i)
+                considerPoly(i);
+        }
+
+        if (bestPoly == INVALID_POLYREF)
+            return false;
+
+        // The charge point should stay near its own path corridor.
+        if (bestDist2D > 4.0f * 4.0f)
+            return false;
+
+        polyCursor = bestPolyIndex;
+
+        float height = point.z;
+        if (dtStatusSucceed(_navMeshQuery->getPolyHeight(bestPoly, mmapPoint, &height)))
+        {
+            point.z = height;
+            return true;
+        }
+
+        if (dtStatusFailed(_navMeshQuery->getPolyHeight(bestPoly, bestClosest, &height)))
+            return false;
+
+        point.x = bestClosest[2];
+        point.y = bestClosest[0];
+        point.z = height;
+        return true;
+    };
 
     auto normalizeChargePoint = [&](G3D::Vector3 point) -> G3D::Vector3
     {
+        if (_source->GetMapId() == MAP_BLADES_EDGE_ARENA && TrySnapToBladeEdgeArenaRope(point))
+            return point;
+
         G3D::Vector3 const before = point;
+
+        if (getNavmeshHeight(point))
+            return point;
+
         NormalizeAllowedPathPoint(_source, point);
 
-        // Do not let height normalization snap the charge to a much lower floor.
-        // That is the fall-through case: Detour path is on the slope, but ground
-        // correction finds a lower surface inside/under the terrain.
+        // Fallback only: never let generic height correction send Charge to a much lower floor.
         if (before.z - point.z > maxStepDown)
-            point.z = before.z;
+            point = before;
 
         return point;
     };
 
     auto appendPoint = [&](G3D::Vector3 point)
     {
-        if (!normalized.empty())
+        if (normalized.empty())
         {
-            if ((normalized.back() - point).squaredLength() < 0.0001f)
-            {
-                normalized.back() = point;
-                return;
-            }
+            normalized.push_back(point);
+            return;
+        }
+
+        if ((normalized.back() - point).squaredLength() < 0.0001f)
+        {
+            normalized.back() = point;
+            return;
+        }
+
+        if (normalized.size() >= MAX_POINT_PATH_LENGTH)
+        {
+            normalized.back() = point;
+            return;
         }
 
         normalized.push_back(point);
     };
 
-    appendPoint(normalizeChargePoint(_pathPoints.front()));
+    G3D::Vector3 previous = normalizeChargePoint(_pathPoints.front());
+    appendPoint(previous);
 
     for (std::size_t i = 1; i < _pathPoints.size(); ++i)
     {
-        G3D::Vector3 const from = _pathPoints[i - 1];
+        G3D::Vector3 const from = previous;
         G3D::Vector3 const to = _pathPoints[i];
         G3D::Vector3 const delta = to - from;
 
@@ -1366,6 +1462,8 @@ bool PathGenerator::NormalizeChargePath(float sampleDist, float /*maxStepUp*/, f
             point = normalizeChargePoint(point);
             appendPoint(point);
         }
+
+        previous = normalizeChargePoint(to);
     }
 
     if (normalized.size() < 2)
