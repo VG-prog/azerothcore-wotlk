@@ -165,13 +165,7 @@ void RandomMovementGenerator<Creature>::_setRandomLocation(Creature* creature)
                     return;
                 }
 
-                PathGenerator::PathCorridorNormalizeOptions normalizeOptions =
-                    PathGenerator::GetDefaultCorridorNormalizeOptions(creature, PathGenerator::PathCorridorNormalizeMode::ExistingPointsOnly);
-
-                normalizeOptions.AllowFallbackToAllowedPositionZ = false;
-                normalizeOptions.PreserveXYDist2D = 0.50f * 0.50f;
-
-                _pathGenerator->NormalizePathToCorridor(normalizeOptions);
+                _pathGenerator->NormalizePathForOneShotMovement();
 
                 finalPath = _pathGenerator->GetPath();
                 Movement::PointsArray::iterator itr = finalPath.begin();

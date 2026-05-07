@@ -93,6 +93,7 @@ class PathGenerator
 
         // shortens the path until the destination is the specified distance from the target point
         void ShortenPathUntilDist(G3D::Vector3 const& point, float dist);
+        bool NormalizePathForOneShotMovement();
         void ShortenPathUntilDist2D(G3D::Vector3 const& target, float dist);
 
         enum class PathCorridorNormalizeMode : uint8

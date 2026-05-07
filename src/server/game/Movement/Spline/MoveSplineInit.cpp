@@ -207,6 +207,7 @@ namespace Movement
             bool result = path.CalculatePath(start.x, start.y, start.z, dest.x, dest.y, dest.z, forceDestination);
             if (result && !(path.GetPathType() & PATHFIND_NOPATH))
             {
+                path.NormalizePathForOneShotMovement();
                 MovebyPath(path.GetPath());
                 return;
             }
@@ -226,6 +227,7 @@ namespace Movement
             bool result = path.CalculatePath(dest.x, dest.y, dest.z, forceDestination);
             if (result && !(path.GetPathType() & PATHFIND_NOPATH))
             {
+                path.NormalizePathForOneShotMovement();
                 MovebyPath(path.GetPath());
                 return;
             }

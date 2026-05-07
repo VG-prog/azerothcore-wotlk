@@ -60,6 +60,7 @@ void PointMovementGenerator<T>::DoInitialize(T* unit)
         bool result = path.CalculatePath(i_x, i_y, i_z, _forceDestination);
         if (result && !(path.GetPathType() & PATHFIND_NOPATH) && path.GetPath().size() > 2)
         {
+            path.NormalizePathForOneShotMovement();
             m_precomputedPath = path.GetPath();
             init.MovebyPath(m_precomputedPath);
         }

@@ -1216,6 +1216,23 @@ void PathGenerator::ShortenPathUntilDist(G3D::Vector3 const& target, float dist)
     _pathPoints.resize(i + 1);
 }
 
+bool PathGenerator::NormalizePathForOneShotMovement()
+{
+    if (!IsPathTypeCorridorNormalizable(GetPathType()) || _pathPoints.size() < 2)
+        return false;
+
+    PathCorridorNormalizeOptions options =
+        GetDefaultCorridorNormalizeOptions(_source, PathCorridorNormalizeMode::ExistingPointsOnly);
+
+    options.AllowFallbackToAllowedPositionZ = false;
+    options.AllowXYCorrection = false;
+    options.FailOnProjectionFailure = false;
+    options.PreserveXYDist2D = 0.50f * 0.50f;
+    options.SimplifySampledOutput = false;
+
+    return NormalizePathToCorridor(options);
+}
+
 void PathGenerator::ShortenPathUntilDist2D(G3D::Vector3 const& target, float dist)
 {
     if (GetPathType() == PATHFIND_BLANK || _pathPoints.size() < 2)
