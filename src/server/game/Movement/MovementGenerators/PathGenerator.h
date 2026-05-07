@@ -93,6 +93,7 @@ class PathGenerator
 
         // shortens the path until the destination is the specified distance from the target point
         void ShortenPathUntilDist(G3D::Vector3 const& point, float dist);
+
         bool NormalizePathForOneShotMovement();
         void ShortenPathUntilDist2D(G3D::Vector3 const& target, float dist);
 
@@ -154,6 +155,27 @@ class PathGenerator
 
         bool NormalizePathToCorridor(PathCorridorNormalizeOptions const& options);
         bool NormalizeChargePath(float sampleDist, float maxStepUp, float maxStepDown);
+
+        struct PathCorridorValidationOptions
+        {
+            // Squared 2D max distance from the already calculated Detour corridor.
+            float MaxCorridorDist2D = 3.0f * 3.0f;
+
+            // Read-only Z sanity check. Lenient on purpose for Chase/Follow stability.
+            float MaxZDeviationUp = 4.0f;
+            float MaxZDeviationDown = 7.0f;
+
+            uint32 PolyLookAhead = 8;
+            uint32 PolyLookBehind = 2;
+
+            bool PreserveCorridorOrder = true;
+            bool ValidateZ = true;
+        };
+
+        [[nodiscard]] static PathCorridorValidationOptions GetDefaultCorridorValidationOptions(WorldObject const* source);
+
+        [[nodiscard]] bool ValidatePathAgainstCorridor(PathCorridorValidationOptions const& options) const;
+        [[nodiscard]] bool ValidatePathForStreamingMovement() const;
 
         [[nodiscard]] float getPathLength() const
         {
