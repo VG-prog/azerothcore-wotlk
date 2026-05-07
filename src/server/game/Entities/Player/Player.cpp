@@ -11317,6 +11317,14 @@ bool Player::CanJoinToBattleground(Battleground const* bg) const
     return GetSession()->HasPermission(rbac::RBAC_PERM_JOIN_NORMAL_BG);
 }
 
+bool Player::CanJoinToBattleground() const
+{
+    if (HasAura(26013))
+        return false;
+
+    return true;
+}
+
 bool Player::CanReportAfkDueToLimit()
 {
     // a player can complain about 15 people per 5 minutes

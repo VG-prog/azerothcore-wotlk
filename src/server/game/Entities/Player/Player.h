@@ -2315,6 +2315,7 @@ public:
 
     void LeaveBattleground(Battleground* bg = nullptr);
     [[nodiscard]] bool CanJoinToBattleground(Battleground const* bg) const;
+    [[nodiscard]] bool CanJoinToBattleground() const;
     bool CanReportAfkDueToLimit();
     void ReportedAfkBy(Player* reporter);
     void ClearAfkReports() { m_bgData.bgAfkReporter.clear(); }
