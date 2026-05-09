@@ -416,7 +416,7 @@ void InstanceSaveMgr::LoadCharacterBinds()
         {
             Field* fields = result->Fetch();
 
-            ObjectGuid guid = ObjectGuid::Create<HighGuid::Player>(fields[0].Get<uint32>());
+            ObjectGuid guid(fields[0].Get<uint64>());
             uint32 instanceId = fields[1].Get<uint32>();
             bool perm = fields[2].Get<bool>();
             bool extended = fields[3].Get<bool>();
@@ -504,7 +504,7 @@ void InstanceSaveMgr::LoadInstanceSavesAndBindsForMapIDs(std::vector<uint32> map
         {
             Field* fields = result->Fetch();
 
-            ObjectGuid guid = ObjectGuid::Create<HighGuid::Player>(fields[0].Get<uint32>());
+            ObjectGuid guid(fields[0].Get<uint64>());
             uint32 instanceId = fields[1].Get<uint32>();
             bool perm = fields[2].Get<bool>();
             bool extended = fields[3].Get<bool>();
@@ -834,7 +834,7 @@ void InstanceSaveMgr::PlayerUnbindInstance(ObjectGuid guid, uint32 mapid, Diffic
         if (deleteFromDB)
         {
             CharacterDatabasePreparedStatement* stmt = CharacterDatabase.GetPreparedStatement(CHAR_DEL_CHAR_INSTANCE_BY_INSTANCE_GUID);
-            stmt->SetData(0, guid.GetCounter());
+            stmt->SetData(0, guid.GetRawValue());
             stmt->SetData(1, itr->second.save->GetInstanceId());
             CharacterDatabase.Execute(stmt);
         }

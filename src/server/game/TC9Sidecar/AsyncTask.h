@@ -69,7 +69,7 @@ public:
 private:
     AsyncFunction asyncFunc;
     CallbackFunction callbackFunc;
-    std::shared_future<T> asyncTask;
+    std::future<T> asyncTask;
     bool isReady;
 };
 

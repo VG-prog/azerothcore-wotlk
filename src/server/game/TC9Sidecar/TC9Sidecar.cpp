@@ -40,6 +40,8 @@ ToCloud9Sidecar* ToCloud9Sidecar::instance()
 
 ToCloud9Sidecar::ToCloud9Sidecar() : _clusterModeEnabled(false), _isCrossrealm(false)
 {
+    for (int i = 0; i < MAX_MAP_ID; ++i)
+        _assignedMapsByID[i] = false;
 }
 
 void ToCloud9Sidecar::Init(uint16 port, int realmId)
@@ -131,17 +133,20 @@ void ToCloud9Sidecar::ProcessAsyncTasks()
 
 bool ToCloud9Sidecar::IsMapAssigned(uint32 mapId)
 {
+    if (mapId >= MAX_MAP_ID)
+        return false;
+
     return _assignedMapsByID[mapId];
 }
 
-uint32 ToCloud9Sidecar::GenerateCharacterGuid(uint16 realmId)
+uint64 ToCloud9Sidecar::GenerateCharacterGuid(uint16 realmId)
 {
-    return uint32(TC9GetNextAvailableCharacterGuid(realmId));
+    return uint64(TC9GetNextAvailableCharacterGuid(realmId));
 }
 
-uint32 ToCloud9Sidecar::GenerateItemGuid(uint16 realmId)
+uint64 ToCloud9Sidecar::GenerateItemGuid(uint16 realmId)
 {
-    return uint32(TC9GetNextAvailableItemGuid(realmId));
+    return uint64(TC9GetNextAvailableItemGuid(realmId));
 }
 
 uint32 ToCloud9Sidecar::GenerateInstanceGuid(uint16 realmId)

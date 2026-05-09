@@ -1544,6 +1544,7 @@ void WorldSession::HandleTC9PrepareForRedirect(WorldPacket& /*recvData*/)
         WorldPacket data(TC9_SMSG_READY_FOR_REDIRECT, 1);
         data << uint8(1); // 1 - Failed.
         SendPacket(&data);
+        return;
     }
 
     LOG_DEBUG("network", "Starting saving, AccountId = {}", GetAccountId());
@@ -1558,15 +1559,19 @@ void WorldSession::HandleTC9PrepareForRedirect(WorldPacket& /*recvData*/)
 
         if (!success)
         {
-            LOG_ERROR("network", "Failed to save player, AccountId = %d", GetAccountId());
+            LOG_ERROR("network", "Failed to save player, AccountId = {}", GetAccountId());
             return;
         }
 
         LOG_DEBUG("network", "Saved, AccountId = %d", GetAccountId());
 
-        GetPlayer()->m_Events.AddEventAtOffset([this](){
-            KickPlayer("HandlePrepareForRedirect client redirected");
-        }, 100ms);
+        if (Player* player = GetPlayer())
+        {
+            player->m_Events.AddEventAtOffset([this]()
+            {
+                KickPlayer("HandlePrepareForRedirect client redirected");
+            }, 100ms);
+        }
 
     });
 }
