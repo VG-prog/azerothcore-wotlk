@@ -143,4 +143,3 @@ void TC9SetOnGroupMemberFlagsChangedHook(OnGroupMemberFlagsChangedHook h) { pani
 void TC9SetOnGroupMemberStateChangedHook(OnGroupMemberStateChangedHook h) { panicWithTC9Unavailable("TC9SetOnGroupMemberStateChangedHook"); }
 void TC9SetOnGroupInstanceResetRequestHook(OnGroupInstanceResetRequestHook h) { panicWithTC9Unavailable("TC9SetOnGroupInstanceResetRequestHook"); }
 void TC9SetOnGroupInstanceBindExtensionRequestHook(OnGroupInstanceBindExtensionRequestHook h) { panicWithTC9Unavailable("TC9SetOnGroupInstanceBindExtensionRequestHook"); }
-void TC9SetGuildCreateHandler(GuildCreateHandler h) { panicWithTC9Unavailable("TC9SetGuildCreateHandler"); }
