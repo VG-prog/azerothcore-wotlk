@@ -155,7 +155,7 @@ PlayerItemErrorCode ToCloud9GrpcHandler::AddExistingItemToPlayer(AddExistingItem
         return PlayerItemErrorUnknownTemplate;
 
     Item* item = NewItemOrBag(proto);
-    if (!item->Create(ObjectGuid(request->itemGuid).GetCounter(), request->itemEntry, player))
+    if (!item->Create(ObjectGuid::LowType(request->itemGuid), request->itemEntry, player))
     {
         delete item;
         return PlayerItemErrorFailedToCreateItem;

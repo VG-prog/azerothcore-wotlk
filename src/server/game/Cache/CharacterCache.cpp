@@ -72,8 +72,8 @@ void CharacterCache::LoadCharacterCacheStorage()
     do
     {
         Field* fields = result->Fetch();
-        AddCharacterCacheEntry(ObjectGuid::Create<HighGuid::Player>(fields[0].Get<uint32>()) /*guid*/, fields[2].Get<uint32>() /*account*/, fields[1].Get<std::string>() /*name*/,
-            fields[4].Get<uint8>() /*gender*/, fields[3].Get<uint8>() /*race*/, fields[5].Get<uint8>() /*class*/, fields[6].Get<uint8>() /*level*/);
+        AddCharacterCacheEntry(ObjectGuid(fields[0].Get<uint64>()) /*guid*/, fields[2].Get<uint32>() /*account*/, fields[1].Get<std::string>() /*name*/,
+             fields[4].Get<uint8>() /*gender*/, fields[3].Get<uint8>() /*race*/, fields[5].Get<uint8>() /*class*/, fields[6].Get<uint8>() /*level*/);
     } while (result->NextRow());
 
     QueryResult mailCountResult = CharacterDatabase.Query("SELECT receiver, COUNT(receiver) FROM mail GROUP BY receiver");
@@ -82,7 +82,7 @@ void CharacterCache::LoadCharacterCacheStorage()
         do
         {
             Field* fields = mailCountResult->Fetch();
-            UpdateCharacterMailCount(ObjectGuid(HighGuid::Player, fields[0].Get<uint32>()), static_cast<int8>(fields[1].Get<uint64>()), true);
+            UpdateCharacterMailCount(ObjectGuid(fields[0].Get<uint64>()), static_cast<int8>(fields[1].Get<uint64>()), true);
         } while (mailCountResult->NextRow());
     }
 
@@ -94,15 +94,15 @@ void CharacterCache::RefreshCacheEntry(uint32 lowGuid)
 {
     QueryResult result = CharacterDatabase.Query("SELECT guid, name, account, race, gender, class, level FROM characters WHERE guid = {}", lowGuid);
     if (!result)
-    {
         return;
-    }
 
     do
     {
         Field* fields = result->Fetch();
-        DeleteCharacterCacheEntry(ObjectGuid::Create<HighGuid::Player>(lowGuid), fields[1].Get<std::string>());
-        AddCharacterCacheEntry(ObjectGuid::Create<HighGuid::Player>(fields[0].Get<uint32>()) /*guid*/, fields[2].Get<uint32>() /*account*/, fields[1].Get<std::string>() /*name*/, fields[4].Get<uint8>() /*gender*/, fields[3].Get<uint8>() /*race*/, fields[5].Get<uint8>() /*class*/, fields[6].Get<uint8>() /*level*/);
+        ObjectGuid guid(fields[0].Get<uint64>());
+
+        DeleteCharacterCacheEntry(guid, fields[1].Get<std::string>());
+        AddCharacterCacheEntry(guid, fields[2].Get<uint32>(), fields[1].Get<std::string>(), fields[4].Get<uint8>(), fields[3].Get<uint8>(), fields[5].Get<uint8>(), fields[6].Get<uint8>());
     } while (result->NextRow());
 
     QueryResult mailCountResult = CharacterDatabase.Query("SELECT receiver, COUNT(receiver) FROM mail WHERE receiver = {} GROUP BY receiver", lowGuid);
@@ -111,7 +111,7 @@ void CharacterCache::RefreshCacheEntry(uint32 lowGuid)
         do
         {
             Field* fields = mailCountResult->Fetch();
-            UpdateCharacterMailCount(ObjectGuid(HighGuid::Player, fields[0].Get<uint32>()), static_cast<int8>(fields[1].Get<uint64>()), true);
+            UpdateCharacterMailCount(ObjectGuid(fields[0].Get<uint64>()), static_cast<int8>(fields[1].Get<uint64>()), true);
         } while (mailCountResult->NextRow());
     }
 }

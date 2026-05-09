@@ -719,7 +719,7 @@ bool Group::RemoveMember(ObjectGuid guid, const RemoveMethod& method /*= GROUP_R
         }
 
         // Remove player from group in DB
-        if (!isBGGroup() && !isBFGroup())
+        if (!sToCloud9Sidecar->ClusterModeEnabled() && !isBGGroup() && !isBFGroup())
         {
             CharacterDatabasePreparedStatement* stmt = CharacterDatabase.GetPreparedStatement(CHAR_DEL_GROUP_MEMBER);
             stmt->SetData(0, guid.GetCounter());
@@ -920,7 +920,7 @@ void Group::ForcedDisband(bool hideDestroy /* = false */)
 
     RemoveAllInvites();
 
-    if (!isBGGroup() && !isBFGroup())
+    if (!sToCloud9Sidecar->ClusterModeEnabled() && !isBGGroup() && !isBFGroup())
     {
         CharacterDatabaseTransaction trans = CharacterDatabase.BeginTransaction();
 
@@ -940,7 +940,8 @@ void Group::ForcedDisband(bool hideDestroy /* = false */)
     }
 
     // Cleaning up instance saved data for gameobjects when a group is disbanded
-    sInstanceSaveMgr->DeleteInstanceSavedData(instanceId);
+    if (!sToCloud9Sidecar->ClusterModeEnabled())
+        sInstanceSaveMgr->DeleteInstanceSavedData(instanceId);
 
     sGroupMgr->RemoveGroup(this);
     delete this;
@@ -2272,6 +2273,9 @@ void Group::SetDungeonDifficulty(Difficulty difficulty)
         player->SetDungeonDifficulty(difficulty);
         player->SendDungeonDifficulty(true);
     }
+
+    if (sToCloud9Sidecar->ClusterModeEnabled())
+        SendUpdateLocal();
 }
 
 void Group::SetRaidDifficulty(Difficulty difficulty)
@@ -2293,6 +2297,9 @@ void Group::SetRaidDifficulty(Difficulty difficulty)
         player->SetRaidDifficulty(difficulty);
         player->SendRaidDifficulty(true);
     }
+
+    if (sToCloud9Sidecar->ClusterModeEnabled())
+        SendUpdateLocal();
 }
 
 void Group::ResetInstances(uint8 method, bool isRaid, Player* leader)
@@ -2804,8 +2811,8 @@ void Group::SendClusterMemberStats(MemberSlot const& member)
     data << member.guid.WriteAsPacked();
     data << uint32(updateMask);
     data << uint16(status);
-    data << uint16(healthPct);
-    data << uint16(100);
+    data << uint32(healthPct);
+    data << uint32(100);
     data << uint8(powerType);
     data << uint16(powerPct);
     data << uint16(100);
@@ -2834,6 +2841,9 @@ void Group::SendClusterReadyCheckStarted(ObjectGuid leaderGuid, uint32 /*duratio
 
 void Group::SendClusterReadyCheckMemberState(ObjectGuid memberGuid, uint8 state)
 {
+    if (state == 0)
+        return;
+
     WorldPacket data(MSG_RAID_READY_CHECK_CONFIRM, 9);
     data << memberGuid;
     data << uint8(state == 1 ? 1 : 0);
@@ -2949,4 +2959,75 @@ void Group::SetClusterMemberState(ObjectGuid memberGuid, bool online, uint8 leve
         SendClusterMemberStats(member);
         return;
     }
+}
+
+void Group::ClusterRemoveMember(ObjectGuid memberGuid, ObjectGuid newLeaderGuid)
+{
+    member_witerator slot = _getMemberWSlot(memberGuid);
+    if (slot == m_memberSlots.end())
+        return;
+
+    Player* player = ObjectAccessor::FindConnectedPlayer(memberGuid);
+
+    if (player)
+    {
+        if (isBGGroup() || isBFGroup())
+            player->RemoveFromBattlegroundOrBattlefieldRaid();
+        else
+        {
+            if (player->GetOriginalGroup() == this)
+                player->SetOriginalGroup(nullptr);
+            else if (player->GetGroup() == this)
+                player->SetGroup(nullptr);
+
+            player->UpdateForQuestWorldObjects();
+        }
+    }
+
+    RemovePlayerFromRolls(memberGuid);
+
+    SubGroupCounterDecrease(slot->group);
+    m_memberSlots.erase(slot);
+
+    if (!isBGGroup() && !isBFGroup())
+        sCharacterCache->ClearCharacterGroup(memberGuid);
+
+    if (m_leaderGuid == memberGuid)
+    {
+        if (Player* oldLeader = ObjectAccessor::FindConnectedPlayer(memberGuid))
+            oldLeader->RemovePlayerFlag(PLAYER_FLAGS_GROUP_LEADER);
+
+        if (newLeaderGuid)
+        {
+            m_leaderGuid = newLeaderGuid;
+
+            if (Player* newLeader = ObjectAccessor::FindConnectedPlayer(newLeaderGuid))
+            {
+                m_leaderName = newLeader->GetName();
+                newLeader->SetPlayerFlag(PLAYER_FLAGS_GROUP_LEADER);
+            }
+            else
+            {
+                std::string cachedName;
+                if (sCharacterCache->GetCharacterNameByGuid(newLeaderGuid, cachedName))
+                    m_leaderName = cachedName;
+                else
+                    m_leaderName.clear();
+            }
+        }
+        else if (!m_memberSlots.empty())
+        {
+            m_leaderGuid = m_memberSlots.front().guid;
+            m_leaderName = m_memberSlots.front().name;
+        }
+        else
+        {
+            m_leaderGuid.Clear();
+            m_leaderName.clear();
+        }
+    }
+
+    ResetMaxEnchantingLevel();
+
+    SendUpdateLocal();
 }

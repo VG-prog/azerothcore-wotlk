@@ -179,6 +179,9 @@ void ToCloud9Sidecar::OnMapsReassigned(uint32* addedMaps, int addedMapsSize, uin
 {
     for (int i = 0; i < addedMapsSize; i++)
     {
+        if (addedMaps[i] >= MAX_MAP_ID)
+            continue;
+
         sToCloud9Sidecar->_assignedMapsByID[addedMaps[i]] = true;
 
         if (Map *map = sMapMgr->FindBaseNonInstanceMap(addedMaps[i]))
@@ -187,6 +190,9 @@ void ToCloud9Sidecar::OnMapsReassigned(uint32* addedMaps, int addedMapsSize, uin
 
     for (int i = 0; i < removedMapsSize; i++)
     {
+        if (removedMaps[i] >= MAX_MAP_ID)
+            continue;
+
         sToCloud9Sidecar->_assignedMapsByID[removedMaps[i]] = false;
 
         if (Map *map = sMapMgr->FindBaseNonInstanceMap(removedMaps[i]))

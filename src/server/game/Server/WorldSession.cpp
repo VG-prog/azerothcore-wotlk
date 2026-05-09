@@ -1539,6 +1539,9 @@ void WorldSession::HandleTC9PrepareForRedirect(WorldPacket& /*recvData*/)
     if (!sToCloud9Sidecar->ClusterModeEnabled())
         return;
 
+    if (m_redirectingToAnotherNode)
+        return;
+
     Player * player = this->GetPlayer();
     if (player == nullptr)
     {
@@ -1549,6 +1552,7 @@ void WorldSession::HandleTC9PrepareForRedirect(WorldPacket& /*recvData*/)
     }
 
     LOG_DEBUG("network", "Starting saving, AccountId = {}", GetAccountId());
+    m_redirectingToAnotherNode = true;
 
     CharacterDatabaseTransaction trans = CharacterDatabase.BeginTransaction();
     player->SaveToDB(trans, false, true);
@@ -1560,6 +1564,7 @@ void WorldSession::HandleTC9PrepareForRedirect(WorldPacket& /*recvData*/)
 
         if (!success)
         {
+            m_redirectingToAnotherNode = false;
             LOG_ERROR("network", "Failed to save player, AccountId = {}", GetAccountId());
             return;
         }
@@ -1570,7 +1575,6 @@ void WorldSession::HandleTC9PrepareForRedirect(WorldPacket& /*recvData*/)
         {
             player->m_Events.AddEventAtOffset([this]()
             {
-                m_redirectingToAnotherNode = true;
                 KickPlayer("HandlePrepareForRedirect client redirected");
             }, 100ms);
         }

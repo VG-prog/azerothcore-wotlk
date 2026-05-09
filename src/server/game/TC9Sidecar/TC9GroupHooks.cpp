@@ -11,7 +11,7 @@
 #include "Log.h"
 #include "Player.h"
 
-void ToCloud9GroupHooks::OnGroupCreated(EventObjectGroup *group)
+void ToCloud9GroupHooks::OnGroupCreated(EventObjectGroup* group)
 {
     LOG_INFO("server", "Group created. ID: {}; Leader: {}.", group->guid, group->leader);
 
@@ -21,14 +21,24 @@ void ToCloud9GroupHooks::OnGroupCreated(EventObjectGroup *group)
     g->m_dungeonDifficulty = Difficulty(group->difficulty);
     g->m_raidDifficulty = Difficulty(group->raidDifficulty);
     g->m_lootMethod = LootMethod(group->lootMethod);
+    g->m_looterGuid = ObjectGuid(group->looterGuid);
     g->m_lootThreshold = ItemQualities(group->lootThreshold);
     g->m_masterLooterGuid = ObjectGuid(group->masterLooterGuid);
     g->m_groupType = GroupType(group->groupType);
+
+    if (g->m_groupType & GROUPTYPE_RAID)
+        g->_initRaidSubGroupsCounter();
+
+    if (Player* leader = ObjectAccessor::FindConnectedPlayer(g->m_leaderGuid))
+        g->m_leaderName = leader->GetName();
+    else
+        sCharacterCache->GetCharacterNameByGuid(g->m_leaderGuid, g->m_leaderName);
 
     for (int i = 0; i < group->membersSize; i++)
         g->AddMemberWithGuid(ObjectGuid(group->members[i]));
 
     sGroupMgr->AddGroup(g);
+    g->SendUpdateLocal();
 }
 
 void ToCloud9GroupHooks::OnGroupDisbanded(uint32 group)
@@ -52,7 +62,7 @@ void ToCloud9GroupHooks::OnGroupMemberRemoved(uint32 group, uint64 member, uint6
     LOG_INFO("server", "Group member removed. ID: {}; Member: {}; NewLeader: {}.", group, member, newLeader);
 
     if (Group* g = sGroupMgr->GetGroupByGUID(group))
-        g->RemoveMember(ObjectGuid(member));
+        g->ClusterRemoveMember(ObjectGuid(member), ObjectGuid(newLeader));
 }
 
 void ToCloud9GroupHooks::OnGroupLootTypeChanged(uint32 group, uint8 lootType, uint64 looter, uint8 lootThreshold)
@@ -63,8 +73,10 @@ void ToCloud9GroupHooks::OnGroupLootTypeChanged(uint32 group, uint8 lootType, ui
     if (Group* g = sGroupMgr->GetGroupByGUID(group))
     {
         g->SetLootMethod((LootMethod)lootType);
+        g->SetLooterGuid(ObjectGuid(looter));
         g->SetMasterLooterGuid(ObjectGuid(looter));
         g->SetLootThreshold((ItemQualities)lootThreshold);
+        g->SendUpdateLocal();
     }
 }
 
@@ -73,7 +85,10 @@ void ToCloud9GroupHooks::OnGroupConvertedToRaid(uint32 group)
     LOG_INFO("server", "Group converted to raid. ID: {}.", group);
 
     if (Group* g = sGroupMgr->GetGroupByGUID(group))
+    {
         g->ConvertToRaid();
+        g->SendUpdateLocal();
+    }
 }
 
 void ToCloud9GroupHooks::OnGroupRaidDifficultyChanged(uint32 group, uint8 difficulty)

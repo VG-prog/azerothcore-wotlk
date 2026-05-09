@@ -977,10 +977,20 @@ void InstanceSaveMgr::ClusterSetPlayerBindExtension(ObjectGuid playerGuid, uint3
 
     bind->extended = extended;
 
-    CharacterDatabase.DirectExecute(
-        "UPDATE character_instance SET extended = {} WHERE guid = {} AND instance = {}",
-        extended ? 1 : 0,
-        playerGuid.GetRawValue(),
-        bind->save->GetInstanceId()
-    );
+    CharacterDatabaseTransaction trans = CharacterDatabase.BeginTransaction();
+
+    if (sToCloud9Sidecar->IsCrossrealm())
+    {
+        CharacterDatabasePreparedStatement* stmt = CharacterDatabase.GetPreparedStatement(CHAR_NO_OP_PROVIDE_REALM_CONTEXT);
+        stmt->SetData(0, playerGuid.GetRealmID());
+        trans->Append(stmt);
+    }
+
+    CharacterDatabasePreparedStatement* stmt = CharacterDatabase.GetPreparedStatement(CHAR_UPD_CHAR_INSTANCE_EXTENDED);
+    stmt->SetData(0, extended ? 1 : 0);
+    stmt->SetData(1, playerGuid.GetRawValue());
+    stmt->SetData(2, bind->save->GetInstanceId());
+    trans->Append(stmt);
+
+    CharacterDatabase.CommitTransaction(trans);
 }
