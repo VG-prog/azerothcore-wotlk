@@ -45,6 +45,8 @@ void TC9SetOnGroupRaidDifficultyChangedHook(OnGroupRaidDifficultyChangedHook h) 
 //
 void TC9SetOnGroupConvertedToRaidHook(OnGroupConvertedToRaidHook h) { panicWithTC9Unavailable("TC9SetOnGroupConvertedToRaidHook"); }
 
+void TC9SetGuildCreateHandler(GuildCreateHandler h) { panicWithTC9Unavailable("TC9SetGuildCreateHandler"); }
+
 void TC9SetOnGuildMemberAddedHook(OnGuildMemberAddedHook h) { panicWithTC9Unavailable("TC9SetOnGuildMemberAddedHook"); }
 
 // TC9SetOnGuildMemberRemovedHook sets hook for guild member removed (kicked) event.
@@ -132,3 +134,13 @@ void TC9SetCanPlayerJoinBattlegroundQueueHandler(CanPlayerJoinBattlegroundQueueH
 // TC9SetCanPlayerTeleportToBattlegroundHandler sets handler for checking if player can teleport to battleground.
 //
 void TC9SetCanPlayerTeleportToBattlegroundHandler(CanPlayerTeleportToBattlegroundHandler h) { panicWithTC9Unavailable("TC9SetCanPlayerTeleportToBattlegroundHandler"); }
+
+void TC9SetOnGroupReadyCheckStartedHook(OnGroupReadyCheckStartedHook h) { panicWithTC9Unavailable("TC9SetOnGroupReadyCheckStartedHook"); }
+void TC9SetOnGroupReadyCheckMemberStateHook(OnGroupReadyCheckMemberStateHook h) { panicWithTC9Unavailable("TC9SetOnGroupReadyCheckMemberStateHook"); }
+void TC9SetOnGroupReadyCheckFinishedHook(OnGroupReadyCheckFinishedHook h) { panicWithTC9Unavailable("TC9SetOnGroupReadyCheckFinishedHook"); }
+void TC9SetOnGroupMemberSubGroupChangedHook(OnGroupMemberSubGroupChangedHook h) { panicWithTC9Unavailable("TC9SetOnGroupMemberSubGroupChangedHook"); }
+void TC9SetOnGroupMemberFlagsChangedHook(OnGroupMemberFlagsChangedHook h) { panicWithTC9Unavailable("TC9SetOnGroupMemberFlagsChangedHook"); }
+void TC9SetOnGroupMemberStateChangedHook(OnGroupMemberStateChangedHook h) { panicWithTC9Unavailable("TC9SetOnGroupMemberStateChangedHook"); }
+void TC9SetOnGroupInstanceResetRequestHook(OnGroupInstanceResetRequestHook h) { panicWithTC9Unavailable("TC9SetOnGroupInstanceResetRequestHook"); }
+void TC9SetOnGroupInstanceBindExtensionRequestHook(OnGroupInstanceBindExtensionRequestHook h) { panicWithTC9Unavailable("TC9SetOnGroupInstanceBindExtensionRequestHook"); }
+void TC9SetGuildCreateHandler(GuildCreateHandler h) { panicWithTC9Unavailable("TC9SetGuildCreateHandler"); }

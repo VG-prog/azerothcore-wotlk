@@ -174,10 +174,22 @@ public:
     {
         ObjectGuid  guid;
         std::string name;
-        uint8       group;
-        uint8       flags;
-        uint8       roles;
+        uint8       group = 0;
+        uint8       flags = 0;
+        uint8       roles = 0;
+
+        // Cluster-only cached remote state.
+        // Local online players still use the real Player object.
+        bool        clusterStateKnown = false;
+        bool        clusterOnline = false;
+        uint8       clusterLevel = 0;
+        uint8       clusterClass = 0;
+        uint32      clusterZoneId = 0;
+        uint32      clusterMapId = 0;
+        uint16      clusterHealthPct = 100;
+        uint16      clusterPowerPct = 100;
     };
+
     typedef std::list<MemberSlot> MemberSlotList;
     typedef MemberSlotList::const_iterator member_citerator;
 
@@ -275,8 +287,12 @@ public:
     // -no description-
     //void SendInit(WorldSession* session);
     void SendTargetIconList(WorldSession* session);
+
     void SendUpdate();
+    void SendUpdateLocal();
     void SendUpdateToPlayer(ObjectGuid playerGUID, MemberSlot* slot = nullptr);
+    void SendClusterMemberStats(MemberSlot const& member);
+
     void UpdatePlayerOutOfRange(Player* player);
     // ignore: GUID of player that will be ignored
     void BroadcastPacket(WorldPacket const* packet, bool ignorePlayersInBGRaid, int group = -1, ObjectGuid ignore = ObjectGuid::Empty);
@@ -324,6 +340,14 @@ public:
     DifficultyPreventionChangeType GetDifficultyChangePreventionReason() const { return _difficultyChangePreventionType; }
     void SetDifficultyChangePrevention(DifficultyPreventionChangeType type);
     void DoForAllMembers(std::function<void(Player*)> const& worker);
+
+    void SendClusterReadyCheckStarted(ObjectGuid leaderGuid, uint32 durationMs);
+    void SendClusterReadyCheckMemberState(ObjectGuid memberGuid, uint8 state);
+    void SendClusterReadyCheckFinished();
+
+    void SetClusterMemberSubGroup(ObjectGuid memberGuid, uint8 subGroup);
+    void SetClusterMemberFlags(ObjectGuid memberGuid, uint8 flags, uint8 roles);
+    void SetClusterMemberState(ObjectGuid memberGuid, bool online, uint8 level, uint8 playerClass, uint32 zoneId, uint32 mapId, uint16 healthPct, uint16 powerPct);
 
     DataMap CustomData;
 

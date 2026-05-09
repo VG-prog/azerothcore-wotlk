@@ -42,6 +42,29 @@
 #include "ArenaTeam.h"
 #include "ArenaTeamMgr.h"
 
+namespace
+{
+    uint8 GetClusterDefaultPowerTypeForClass(uint8 playerClass)
+    {
+        switch (playerClass)
+        {
+        case CLASS_WARRIOR:
+            return POWER_RAGE;
+        case CLASS_ROGUE:
+            return POWER_ENERGY;
+        case CLASS_DEATH_KNIGHT:
+            return POWER_RUNIC_POWER;
+        default:
+            return POWER_MANA;
+        }
+    }
+
+    uint16 ClampPct(uint16 value)
+    {
+        return value > 100 ? 100 : value;
+    }
+}
+
 Roll::Roll(ObjectGuid _guid, LootItem const& li) : itemGUID(_guid), itemid(li.itemid),
     itemRandomPropId(li.randomPropertyId), itemRandomSuffix(li.randomSuffix), itemCount(li.count),
     totalPlayersRolling(0), totalNeed(0), totalGreed(0), totalPass(0), itemSlot(0),
@@ -545,13 +568,9 @@ bool Group::AddMember(Player* player)
 
 void Group::AddMemberWithGuid(ObjectGuid guid)
 {
-    if (Player* player = ObjectAccessor::FindPlayer(guid))
-    {
-        AddMember(player);
+    if (IsMember(guid))
         return;
-    }
 
-    // Get first not-full group
     uint8 subGroup = 0;
     if (m_subGroupsCounts)
     {
@@ -564,24 +583,89 @@ void Group::AddMemberWithGuid(ObjectGuid guid)
                 break;
             }
         }
-        // We are raid group and no one slot is free
+
         if (!groupFound)
             return;
     }
 
     MemberSlot member;
-    member.guid      = guid;
-    member.group     = subGroup;
-    member.flags     = 0;
-    member.roles     = 0;
+    member.guid = guid;
+    member.group = subGroup;
+    member.flags = 0;
+    member.roles = 0;
+
+    if (Player* player = ObjectAccessor::FindConnectedPlayer(guid))
+    {
+        member.name = player->GetName();
+        member.clusterStateKnown = true;
+        member.clusterOnline = true;
+        member.clusterLevel = player->GetLevel();
+        member.clusterClass = player->getClass();
+        member.clusterZoneId = player->GetZoneId();
+        member.clusterMapId = player->GetMapId();
+        member.clusterHealthPct = player->GetMaxHealth() ? uint16(std::min<uint32>(100, player->GetHealth() * 100 / player->GetMaxHealth())) : 100;
+        member.clusterPowerPct = player->GetMaxPower(player->getPowerType()) ? uint16(std::min<uint32>(100, player->GetPower(player->getPowerType()) * 100 / player->GetMaxPower(player->getPowerType()))) : 100;
+    }
+    else if (CharacterCacheEntry const* cache = sCharacterCache->GetCharacterCacheByGuid(guid))
+    {
+        member.name = cache->Name;
+        member.clusterLevel = cache->Level;
+        member.clusterClass = cache->Class;
+    }
+    else
+    {
+        member.name = guid.ToString();
+    }
+
     m_memberSlots.push_back(member);
 
     if (!isBGGroup() && !isBFGroup())
-    {
         sCharacterCache->UpdateCharacterGroup(guid, GetGUID());
-    }
 
     SubGroupCounterIncrease(subGroup);
+
+    if (Player* player = ObjectAccessor::FindConnectedPlayer(guid))
+    {
+        player->SetGroupInvite(nullptr);
+
+        if (player->GetGroup())
+        {
+            if (isBGGroup() || isBFGroup())
+                player->SetBattlegroundOrBattlefieldRaid(this, subGroup);
+            else
+                player->SetOriginalGroup(this, subGroup);
+        }
+        else
+            player->SetGroup(this, subGroup);
+
+        _cancelHomebindIfInstance(player);
+
+        if (!IsLeader(player->GetGUID()) && !isBGGroup() && !isBFGroup())
+        {
+            if (player->GetDungeonDifficulty() != GetDungeonDifficulty())
+            {
+                player->SetDungeonDifficulty(GetDungeonDifficulty());
+                player->SendDungeonDifficulty(true);
+            }
+
+            if (player->GetRaidDifficulty() != GetRaidDifficulty())
+            {
+                player->SetRaidDifficulty(GetRaidDifficulty());
+                player->SendRaidDifficulty(true);
+            }
+        }
+
+        player->SetGroupUpdateFlag(GROUP_UPDATE_FULL);
+        UpdatePlayerOutOfRange(player);
+
+        if (isRaidGroup())
+            player->UpdateForQuestWorldObjects();
+
+        if (m_maxEnchantingLevel < player->GetSkillValue(SKILL_ENCHANTING))
+            m_maxEnchantingLevel = player->GetSkillValue(SKILL_ENCHANTING);
+    }
+
+    SendUpdateLocal();
 }
 
 bool Group::RemoveMember(ObjectGuid guid, const RemoveMethod& method /*= GROUP_REMOVEMETHOD_DEFAULT*/, ObjectGuid kicker /*= ObjectGuid::Empty*/, const char* reason /*= nullptr*/)
@@ -738,7 +822,7 @@ void Group::ChangeLeader(ObjectGuid newLeaderGuid)
     if (!newLeader)
         return;
 
-    if (!isBGGroup() && !isBFGroup())
+    if (!sToCloud9Sidecar->ClusterModeEnabled() && !isBGGroup() && !isBFGroup())
     {
         CharacterDatabaseTransaction trans = CharacterDatabase.BeginTransaction();
         // Update the group leader
@@ -1719,12 +1803,14 @@ void Group::SendTargetIconList(WorldSession* session)
 
 void Group::SendUpdate()
 {
-    if (sToCloud9Sidecar->ClusterModeEnabled() && !this->isBFGroup() && !this->isBGGroup())
-    {
-        // Group service responsible for sending these updates.
+    if (sToCloud9Sidecar->ClusterModeEnabled() && !isBFGroup() && !isBGGroup())
         return;
-    }
 
+    SendUpdateLocal();
+}
+
+void Group::SendUpdateLocal()
+{
     for (member_witerator witr = m_memberSlots.begin(); witr != m_memberSlots.end(); ++witr)
         SendUpdateToPlayer(witr->guid, &(*witr));
 }
@@ -1768,8 +1854,34 @@ void Group::SendUpdateToPlayer(ObjectGuid playerGUID, MemberSlot* slot)
 
         Player* member = ObjectAccessor::FindConnectedPlayer(citr->guid);
 
-        uint8 onlineState = (member && !member->GetSession()->PlayerLogout()) ? MEMBER_STATUS_ONLINE : MEMBER_STATUS_OFFLINE;
-        onlineState = onlineState | ((isBGGroup() || isBFGroup()) ? MEMBER_STATUS_PVP : 0);
+        uint8 onlineState = MEMBER_STATUS_OFFLINE;
+
+        if (member && !member->GetSession()->PlayerLogout())
+        {
+            onlineState = MEMBER_STATUS_ONLINE;
+
+            if (member->IsPvP())
+                onlineState |= MEMBER_STATUS_PVP;
+
+            if (!member->IsAlive())
+                onlineState |= member->HasPlayerFlag(PLAYER_FLAGS_GHOST) ? MEMBER_STATUS_GHOST : MEMBER_STATUS_DEAD;
+
+            if (member->IsFFAPvP())
+                onlineState |= MEMBER_STATUS_PVP_FFA;
+
+            if (member->isAFK())
+                onlineState |= MEMBER_STATUS_AFK;
+
+            if (member->isDND())
+                onlineState |= MEMBER_STATUS_DND;
+        }
+        else if (citr->clusterStateKnown && citr->clusterOnline)
+        {
+            onlineState = MEMBER_STATUS_ONLINE;
+        }
+
+        if (isBGGroup() || isBFGroup())
+            onlineState |= MEMBER_STATUS_PVP;
 
         data << citr->name;
         data << citr->guid;                             // guid
@@ -1892,7 +2004,7 @@ void Group::ChangeMembersGroup(ObjectGuid guid, uint8 group)
     SubGroupCounterDecrease(prevSubGroup);
 
     // Preserve new sub group in database for non-raid groups
-    if (!isBGGroup() && !isBFGroup())
+    if (!sToCloud9Sidecar->ClusterModeEnabled() && !isBGGroup() && !isBFGroup())
     {
         CharacterDatabasePreparedStatement* stmt = CharacterDatabase.GetPreparedStatement(CHAR_UPD_GROUP_MEMBER_SUBGROUP);
 
@@ -2500,12 +2612,15 @@ void Group::SetGroupMemberFlag(ObjectGuid guid, bool apply, GroupMemberFlags fla
     ToggleGroupMemberFlag(slot, flag, apply);
 
     // Preserve the new setting in the db
-    CharacterDatabasePreparedStatement* stmt = CharacterDatabase.GetPreparedStatement(CHAR_UPD_GROUP_MEMBER_FLAG);
+    if (!sToCloud9Sidecar->ClusterModeEnabled() && !isBGGroup() && !isBFGroup())
+    {
+        CharacterDatabasePreparedStatement* stmt = CharacterDatabase.GetPreparedStatement(CHAR_UPD_GROUP_MEMBER_FLAG);
 
-    stmt->SetData(0, slot->flags);
-    stmt->SetData(1, guid.GetCounter());
+        stmt->SetData(0, slot->flags);
+        stmt->SetData(1, guid.GetCounter());
 
-    CharacterDatabase.Execute(stmt);
+        CharacterDatabase.Execute(stmt);
+    }
 
     // Broadcast the changes to the group
     SendUpdate();
@@ -2620,5 +2735,218 @@ void Group::DoForAllMembers(std::function<void(Player*)> const& worker)
             continue;
 
         worker(member);
+    }
+}
+
+void Group::SendClusterMemberStats(MemberSlot const& member)
+{
+    if (!member.clusterStateKnown)
+        return;
+
+    Player* localPlayer = ObjectAccessor::FindConnectedPlayer(member.guid);
+
+    uint16 status = MEMBER_STATUS_OFFLINE;
+    uint8 level = member.clusterLevel;
+    uint8 playerClass = member.clusterClass;
+    uint32 zoneId = member.clusterZoneId;
+    uint16 healthPct = ClampPct(member.clusterHealthPct);
+    uint16 powerPct = ClampPct(member.clusterPowerPct);
+    uint8 powerType = GetClusterDefaultPowerTypeForClass(playerClass);
+
+    if (localPlayer && !localPlayer->GetSession()->PlayerLogout())
+    {
+        status = MEMBER_STATUS_ONLINE;
+        level = localPlayer->GetLevel();
+        playerClass = localPlayer->getClass();
+        zoneId = localPlayer->GetZoneId();
+        powerType = localPlayer->getPowerType();
+
+        healthPct = localPlayer->GetMaxHealth()
+            ? uint16(std::min<uint32>(100, localPlayer->GetHealth() * 100 / localPlayer->GetMaxHealth()))
+            : 100;
+
+        powerPct = localPlayer->GetMaxPower(localPlayer->getPowerType())
+            ? uint16(std::min<uint32>(100, localPlayer->GetPower(localPlayer->getPowerType()) * 100 / localPlayer->GetMaxPower(localPlayer->getPowerType())))
+            : 100;
+
+        if (localPlayer->IsPvP())
+            status |= MEMBER_STATUS_PVP;
+
+        if (!localPlayer->IsAlive())
+            status |= localPlayer->HasPlayerFlag(PLAYER_FLAGS_GHOST) ? MEMBER_STATUS_GHOST : MEMBER_STATUS_DEAD;
+
+        if (localPlayer->IsFFAPvP())
+            status |= MEMBER_STATUS_PVP_FFA;
+
+        if (localPlayer->isAFK())
+            status |= MEMBER_STATUS_AFK;
+
+        if (localPlayer->isDND())
+            status |= MEMBER_STATUS_DND;
+    }
+    else if (member.clusterOnline)
+        status = MEMBER_STATUS_ONLINE;
+
+    if (isBGGroup() || isBFGroup())
+        status |= MEMBER_STATUS_PVP;
+
+    uint32 updateMask =
+        GROUP_UPDATE_FLAG_STATUS |
+        GROUP_UPDATE_FLAG_CUR_HP |
+        GROUP_UPDATE_FLAG_MAX_HP |
+        GROUP_UPDATE_FLAG_POWER_TYPE |
+        GROUP_UPDATE_FLAG_CUR_POWER |
+        GROUP_UPDATE_FLAG_MAX_POWER |
+        GROUP_UPDATE_FLAG_LEVEL |
+        GROUP_UPDATE_FLAG_ZONE;
+
+    WorldPacket data(SMSG_PARTY_MEMBER_STATS_FULL, 64);
+    data << member.guid.WriteAsPacked();
+    data << uint32(updateMask);
+    data << uint16(status);
+    data << uint16(healthPct);
+    data << uint16(100);
+    data << uint8(powerType);
+    data << uint16(powerPct);
+    data << uint16(100);
+    data << uint16(level);
+    data << uint16(zoneId);
+
+    for (MemberSlot const& receiverSlot : m_memberSlots)
+    {
+        Player* receiver = ObjectAccessor::FindConnectedPlayer(receiverSlot.guid);
+        if (!receiver || !receiver->GetSession())
+            continue;
+
+        receiver->GetSession()->SendPacket(&data);
+    }
+}
+
+void Group::SendClusterReadyCheckStarted(ObjectGuid leaderGuid, uint32 /*durationMs*/)
+{
+    WorldPacket data(MSG_RAID_READY_CHECK, 8);
+    data << leaderGuid;
+
+    for (MemberSlot const& member : m_memberSlots)
+        if (Player* player = ObjectAccessor::FindConnectedPlayer(member.guid))
+            player->GetSession()->SendPacket(&data);
+}
+
+void Group::SendClusterReadyCheckMemberState(ObjectGuid memberGuid, uint8 state)
+{
+    WorldPacket data(MSG_RAID_READY_CHECK_CONFIRM, 9);
+    data << memberGuid;
+    data << uint8(state == 1 ? 1 : 0);
+
+    for (MemberSlot const& member : m_memberSlots)
+        if (Player* player = ObjectAccessor::FindConnectedPlayer(member.guid))
+            player->GetSession()->SendPacket(&data);
+}
+
+void Group::SendClusterReadyCheckFinished()
+{
+    WorldPacket data(MSG_RAID_READY_CHECK_FINISHED, 0);
+
+    for (MemberSlot const& member : m_memberSlots)
+        if (Player* player = ObjectAccessor::FindConnectedPlayer(member.guid))
+            player->GetSession()->SendPacket(&data);
+}
+
+void Group::SetClusterMemberSubGroup(ObjectGuid memberGuid, uint8 subGroup)
+{
+    if (subGroup >= MAX_RAID_SUBGROUPS)
+        return;
+
+    for (MemberSlot& member : m_memberSlots)
+    {
+        if (member.guid != memberGuid)
+            continue;
+
+        if (member.group == subGroup)
+            return;
+
+        SubGroupCounterDecrease(member.group);
+        member.group = subGroup;
+        SubGroupCounterIncrease(member.group);
+
+        if (Player* player = ObjectAccessor::FindConnectedPlayer(memberGuid))
+        {
+            if (player->GetGroup() == this)
+                player->GetGroupRef().setSubGroup(subGroup);
+            else if (player->GetOriginalGroup() == this)
+                player->GetOriginalGroupRef().setSubGroup(subGroup);
+        }
+
+        SendUpdateLocal();
+        return;
+    }
+}
+
+void Group::SetClusterMemberFlags(ObjectGuid memberGuid, uint8 flags, uint8 roles)
+{
+    for (MemberSlot& member : m_memberSlots)
+    {
+        if (member.guid != memberGuid)
+            continue;
+
+        member.flags = flags;
+        member.roles = roles;
+
+        SendUpdateLocal();
+        return;
+    }
+}
+
+void Group::SetClusterMemberState(ObjectGuid memberGuid, bool online, uint8 level, uint8 playerClass, uint32 zoneId, uint32 mapId, uint16 healthPct, uint16 powerPct)
+{
+    for (MemberSlot& member : m_memberSlots)
+    {
+        if (member.guid != memberGuid)
+            continue;
+
+        member.clusterStateKnown = true;
+        member.clusterOnline = online;
+        member.clusterLevel = level;
+        member.clusterClass = playerClass;
+        member.clusterZoneId = zoneId;
+        member.clusterMapId = mapId;
+        member.clusterHealthPct = ClampPct(healthPct);
+        member.clusterPowerPct = ClampPct(powerPct);
+
+        if (CharacterCacheEntry const* cache = sCharacterCache->GetCharacterCacheByGuid(memberGuid))
+        {
+            if (member.name.empty() || member.name == memberGuid.ToString())
+                member.name = cache->Name;
+
+            if (!member.clusterLevel)
+                member.clusterLevel = cache->Level;
+
+            if (!member.clusterClass)
+                member.clusterClass = cache->Class;
+        }
+
+        if (Player* player = ObjectAccessor::FindConnectedPlayer(memberGuid))
+        {
+            member.clusterOnline = true;
+            member.clusterLevel = player->GetLevel();
+            member.clusterClass = player->getClass();
+            member.clusterZoneId = player->GetZoneId();
+            member.clusterMapId = player->GetMapId();
+
+            member.clusterHealthPct = player->GetMaxHealth()
+                ? uint16(std::min<uint32>(100, player->GetHealth() * 100 / player->GetMaxHealth()))
+                : 100;
+
+            member.clusterPowerPct = player->GetMaxPower(player->getPowerType())
+                ? uint16(std::min<uint32>(100, player->GetPower(player->getPowerType()) * 100 / player->GetMaxPower(player->getPowerType())))
+                : 100;
+        }
+
+        if (member.clusterLevel)
+            sCharacterCache->UpdateCharacterLevel(memberGuid, member.clusterLevel);
+
+        SendUpdateLocal();
+        SendClusterMemberStats(member);
+        return;
     }
 }

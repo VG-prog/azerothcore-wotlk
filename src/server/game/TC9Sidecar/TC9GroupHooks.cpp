@@ -9,6 +9,7 @@
 #include "Group.h"
 #include "GroupMgr.h"
 #include "Log.h"
+#include "Player.h"
 
 void ToCloud9GroupHooks::OnGroupCreated(EventObjectGroup *group)
 {
@@ -89,4 +90,125 @@ void ToCloud9GroupHooks::OnGroupDungeonDifficultyChanged(uint32 group, uint8 dif
 
     if (Group* g = sGroupMgr->GetGroupByGUID(group))
         g->SetDungeonDifficulty((Difficulty)difficulty);
+}
+
+void ToCloud9GroupHooks::OnGroupReadyCheckStarted(GroupReadyCheckStarted* request)
+{
+    if (!request)
+        return;
+
+    Group* group = sGroupMgr->GetGroupByGUID(request->groupGuid);
+    if (!group)
+        return;
+
+    group->SendClusterReadyCheckStarted(ObjectGuid(request->leaderGuid), request->durationMs);
+}
+
+void ToCloud9GroupHooks::OnGroupReadyCheckMemberState(GroupReadyCheckMemberState* request)
+{
+    if (!request)
+        return;
+
+    Group* group = sGroupMgr->GetGroupByGUID(request->groupGuid);
+    if (!group)
+        return;
+
+    group->SendClusterReadyCheckMemberState(ObjectGuid(request->memberGuid), request->state);
+}
+
+void ToCloud9GroupHooks::OnGroupReadyCheckFinished(GroupReadyCheckFinished* request)
+{
+    if (!request)
+        return;
+
+    Group* group = sGroupMgr->GetGroupByGUID(request->groupGuid);
+    if (!group)
+        return;
+
+    group->SendClusterReadyCheckFinished();
+}
+
+void ToCloud9GroupHooks::OnGroupMemberSubGroupChanged(GroupMemberSubGroupChanged* request)
+{
+    if (!request)
+        return;
+
+    Group* group = sGroupMgr->GetGroupByGUID(request->groupGuid);
+    if (!group)
+        return;
+
+    group->SetClusterMemberSubGroup(ObjectGuid(request->memberGuid), request->subGroup);
+}
+
+void ToCloud9GroupHooks::OnGroupMemberFlagsChanged(GroupMemberFlagsChanged* request)
+{
+    if (!request)
+        return;
+
+    Group* group = sGroupMgr->GetGroupByGUID(request->groupGuid);
+    if (!group)
+        return;
+
+    group->SetClusterMemberFlags(ObjectGuid(request->memberGuid), request->flags, request->roles);
+}
+
+void ToCloud9GroupHooks::OnGroupMemberStateChanged(GroupMemberStateChanged* request)
+{
+    if (!request)
+        return;
+
+    Group* group = sGroupMgr->GetGroupByGUID(request->groupGuid);
+    if (!group)
+        return;
+
+    group->SetClusterMemberState(
+        ObjectGuid(request->memberGuid),
+        request->online != 0,
+        request->level,
+        request->playerClass,
+        request->zoneId,
+        request->mapId,
+        request->healthPct,
+        request->powerPct
+    );
+}
+
+void ToCloud9GroupHooks::OnGroupInstanceResetRequest(GroupInstanceResetRequest* request)
+{
+    if (!request)
+        return;
+
+    ObjectGuid playerGuid(request->playerGuid);
+
+    if (Player* player = ObjectAccessor::FindConnectedPlayer(playerGuid))
+    {
+        Difficulty difficulty = Difficulty(request->difficulty);
+
+        if (InstancePlayerBind* bind = sInstanceSaveMgr->PlayerGetBoundInstance(playerGuid, request->mapId, difficulty))
+        {
+            if (bind->save)
+                sInstanceSaveMgr->PlayerUnbindInstance(playerGuid, request->mapId, difficulty, true, player);
+        }
+
+        player->SendRaidInfo();
+    }
+}
+
+void ToCloud9GroupHooks::OnGroupInstanceBindExtensionRequest(GroupInstanceBindExtensionRequest* request)
+{
+    if (!request)
+        return;
+
+    ObjectGuid playerGuid(request->playerGuid);
+    Difficulty difficulty = Difficulty(request->difficulty);
+
+    sInstanceSaveMgr->ClusterSetPlayerBindExtension(
+        playerGuid,
+        request->mapId,
+        difficulty,
+        request->extended != 0
+    );
+
+    if (Player* player = ObjectAccessor::FindConnectedPlayer(playerGuid))
+        player->SendRaidInfo();
 }

@@ -94,6 +94,15 @@ void ToCloud9Sidecar::SetupHooks()
     TC9SetOnGroupConvertedToRaidHook(&ToCloud9GroupHooks::OnGroupConvertedToRaid);
     TC9SetOnGroupRaidDifficultyChangedHook(&ToCloud9GroupHooks::OnGroupRaidDifficultyChanged);
     TC9SetOnGroupDungeonDifficultyChangedHook(&ToCloud9GroupHooks::OnGroupDungeonDifficultyChanged);
+
+    TC9SetOnGroupReadyCheckStartedHook(&ToCloud9GroupHooks::OnGroupReadyCheckStarted);
+    TC9SetOnGroupReadyCheckMemberStateHook(&ToCloud9GroupHooks::OnGroupReadyCheckMemberState);
+    TC9SetOnGroupReadyCheckFinishedHook(&ToCloud9GroupHooks::OnGroupReadyCheckFinished);
+    TC9SetOnGroupMemberSubGroupChangedHook(&ToCloud9GroupHooks::OnGroupMemberSubGroupChanged);
+    TC9SetOnGroupMemberFlagsChangedHook(&ToCloud9GroupHooks::OnGroupMemberFlagsChanged);
+    TC9SetOnGroupMemberStateChangedHook(&ToCloud9GroupHooks::OnGroupMemberStateChanged);
+    TC9SetOnGroupInstanceResetRequestHook(&ToCloud9GroupHooks::OnGroupInstanceResetRequest);
+    TC9SetOnGroupInstanceBindExtensionRequestHook(&ToCloud9GroupHooks::OnGroupInstanceBindExtensionRequest);
 }
 
 void ToCloud9Sidecar::SetupGrpcHandlers()
@@ -112,6 +121,8 @@ void ToCloud9Sidecar::SetupGrpcHandlers()
     TC9SetBattlegroundAddPlayersHandler(&ToCloud9GrpcHandler::AddPlayersToBattleground);
     TC9SetCanPlayerJoinBattlegroundQueueHandler(&ToCloud9GrpcHandler::CanPlayerJoinBattlegroundQueue);
     TC9SetCanPlayerTeleportToBattlegroundHandler(&ToCloud9GrpcHandler::CanPlayerTeleportToBattleground);
+
+    TC9SetGuildCreateHandler(&ToCloud9GrpcHandler::CreateGuild);
 
     TC9SetMonitoringDataCollectorHandler(&HandleMonitoringRequest);
 }

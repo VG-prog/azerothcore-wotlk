@@ -968,3 +968,19 @@ void InstanceSaveMgr::UnbindAllFor(InstanceSave* save)
         PlayerUnbindInstance(guid, mapId, difficulty, true, ObjectAccessor::FindConnectedPlayer(guid));
     }
 }
+
+void InstanceSaveMgr::ClusterSetPlayerBindExtension(ObjectGuid playerGuid, uint32 mapId, Difficulty difficulty, bool extended)
+{
+    InstancePlayerBind* bind = PlayerGetBoundInstance(playerGuid, mapId, difficulty);
+    if (!bind || !bind->save)
+        return;
+
+    bind->extended = extended;
+
+    CharacterDatabase.DirectExecute(
+        "UPDATE character_instance SET extended = {} WHERE guid = {} AND instance = {}",
+        extended ? 1 : 0,
+        playerGuid.GetRawValue(),
+        bind->save->GetInstanceId()
+    );
+}

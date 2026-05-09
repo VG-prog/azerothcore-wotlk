@@ -25,6 +25,14 @@ public:
     static void OnGroupConvertedToRaid(uint32 group);
     static void OnGroupRaidDifficultyChanged(uint32 group, uint8 difficulty);
     static void OnGroupDungeonDifficultyChanged(uint32 group, uint8 difficulty);
+    static void OnGroupReadyCheckStarted(GroupReadyCheckStarted* request);
+    static void OnGroupReadyCheckMemberState(GroupReadyCheckMemberState* request);
+    static void OnGroupReadyCheckFinished(GroupReadyCheckFinished* request);
+    static void OnGroupMemberSubGroupChanged(GroupMemberSubGroupChanged* request);
+    static void OnGroupMemberFlagsChanged(GroupMemberFlagsChanged* request);
+    static void OnGroupMemberStateChanged(GroupMemberStateChanged* request);
+    static void OnGroupInstanceResetRequest(GroupInstanceResetRequest* request);
+    static void OnGroupInstanceBindExtensionRequest(GroupInstanceBindExtensionRequest* request);
 };
 
 #endif /* TC9GroupHooks_h */

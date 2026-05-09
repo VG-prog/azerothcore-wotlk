@@ -18,6 +18,7 @@
 #include "TC9GrpcHandler.h"
 #include "Bag.h"
 #include "BattlegroundMgr.h"
+#include "GuildMgr.h"
 #include "Item.h"
 #include "ObjectAccessor.h"
 #include "Player.h"
@@ -348,4 +349,50 @@ BattlegroundJoinCheckErrorCode ToCloud9GrpcHandler::CanPlayerTeleportToBattlegro
         return BattlegroundJoinCheckErrorCodeResponseIsFalse;
 
     return BattlegroundJoinCheckErrorCodeOK;
+}
+
+GuildCreateResponse ToCloud9GrpcHandler::CreateGuild(GuildCreateRequest* request)
+{
+    GuildCreateResponse response{};
+    response.errorCode = GuildCreateErrorCodeNoError;
+    response.guildId = 0;
+
+    if (!request || !request->guildName)
+    {
+        response.errorCode = GuildCreateErrorCodeInvalidName;
+        return response;
+    }
+
+    Player* leader = ObjectAccessor::FindConnectedPlayer(ObjectGuid(request->leaderGuid));
+    if (!leader)
+    {
+        response.errorCode = GuildCreateErrorCodeLeaderNotFound;
+        return response;
+    }
+
+    std::string guildName = request->guildName;
+    if (guildName.empty())
+    {
+        response.errorCode = GuildCreateErrorCodeInvalidName;
+        return response;
+    }
+
+    if (sGuildMgr->GetGuildByName(guildName))
+    {
+        response.errorCode = GuildCreateErrorCodeNameExists;
+        return response;
+    }
+
+    Guild* guild = new Guild();
+    if (!guild->Create(leader, guildName))
+    {
+        delete guild;
+        response.errorCode = GuildCreateErrorCodeInternalError;
+        return response;
+    }
+
+    sGuildMgr->AddGuild(guild);
+    response.guildId = guild->GetId();
+
+    return response;
 }

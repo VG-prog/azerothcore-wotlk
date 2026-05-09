@@ -185,6 +185,8 @@ public:
     void CopyBinds(ObjectGuid from, ObjectGuid to, Player* toPlr = nullptr);
     void UnbindAllFor(InstanceSave* save);
 
+    void ClusterSetPlayerBindExtension(ObjectGuid playerGuid, uint32 mapId, Difficulty difficulty, bool extended);
+
     void SanitizeInstanceSavedData();
     void DeleteInstanceSavedData(uint32 instanceId);
 protected:

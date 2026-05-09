@@ -115,3 +115,107 @@ int CallOnGroupConvertedToRaidHook(uint32_t guid) {
     groupConvertedToRaid(guid);
     return GroupHookStatusOK;
 }
+
+static OnGroupReadyCheckStartedHook groupReadyCheckStartedHook;
+void SetOnGroupReadyCheckStartedHook(OnGroupReadyCheckStartedHook h) {
+    groupReadyCheckStartedHook = h;
+}
+
+int CallOnGroupReadyCheckStartedHook(GroupReadyCheckStarted* request) {
+    if (groupReadyCheckStartedHook == 0)
+        return GroupHookStatusNoHook;
+
+    groupReadyCheckStartedHook(request);
+    return GroupHookStatusOK;
+}
+
+static OnGroupReadyCheckMemberStateHook groupReadyCheckMemberStateHook;
+void SetOnGroupReadyCheckMemberStateHook(OnGroupReadyCheckMemberStateHook h) {
+    groupReadyCheckMemberStateHook = h;
+}
+
+int CallOnGroupReadyCheckMemberStateHook(GroupReadyCheckMemberState* request) {
+    if (groupReadyCheckMemberStateHook == 0)
+        return GroupHookStatusNoHook;
+
+    groupReadyCheckMemberStateHook(request);
+    return GroupHookStatusOK;
+}
+
+static OnGroupReadyCheckFinishedHook groupReadyCheckFinishedHook;
+void SetOnGroupReadyCheckFinishedHook(OnGroupReadyCheckFinishedHook h) {
+    groupReadyCheckFinishedHook = h;
+}
+
+int CallOnGroupReadyCheckFinishedHook(GroupReadyCheckFinished* request) {
+    if (groupReadyCheckFinishedHook == 0)
+        return GroupHookStatusNoHook;
+
+    groupReadyCheckFinishedHook(request);
+    return GroupHookStatusOK;
+}
+
+static OnGroupMemberSubGroupChangedHook groupMemberSubGroupChangedHook;
+void SetOnGroupMemberSubGroupChangedHook(OnGroupMemberSubGroupChangedHook h) {
+    groupMemberSubGroupChangedHook = h;
+}
+
+int CallOnGroupMemberSubGroupChangedHook(GroupMemberSubGroupChanged* request) {
+    if (groupMemberSubGroupChangedHook == 0)
+        return GroupHookStatusNoHook;
+
+    groupMemberSubGroupChangedHook(request);
+    return GroupHookStatusOK;
+}
+
+static OnGroupMemberFlagsChangedHook groupMemberFlagsChangedHook;
+void SetOnGroupMemberFlagsChangedHook(OnGroupMemberFlagsChangedHook h) {
+    groupMemberFlagsChangedHook = h;
+}
+
+int CallOnGroupMemberFlagsChangedHook(GroupMemberFlagsChanged* request) {
+    if (groupMemberFlagsChangedHook == 0)
+        return GroupHookStatusNoHook;
+
+    groupMemberFlagsChangedHook(request);
+    return GroupHookStatusOK;
+}
+
+static OnGroupMemberStateChangedHook groupMemberStateChangedHook;
+void SetOnGroupMemberStateChangedHook(OnGroupMemberStateChangedHook h) {
+    groupMemberStateChangedHook = h;
+}
+
+int CallOnGroupMemberStateChangedHook(GroupMemberStateChanged* request) {
+    if (groupMemberStateChangedHook == 0)
+        return GroupHookStatusNoHook;
+
+    groupMemberStateChangedHook(request);
+    return GroupHookStatusOK;
+}
+
+static OnGroupInstanceResetRequestHook groupInstanceResetRequestHook;
+void SetOnGroupInstanceResetRequestHook(OnGroupInstanceResetRequestHook h) {
+    groupInstanceResetRequestHook = h;
+}
+
+int CallOnGroupInstanceResetRequestHook(GroupInstanceResetRequest* request) {
+    if (groupInstanceResetRequestHook == 0)
+        return GroupHookStatusNoHook;
+
+    groupInstanceResetRequestHook(request);
+    return GroupHookStatusOK;
+}
+
+static OnGroupInstanceBindExtensionRequestHook groupInstanceBindExtensionRequestHook;
+void SetOnGroupInstanceBindExtensionRequestHook(OnGroupInstanceBindExtensionRequestHook h) {
+    groupInstanceBindExtensionRequestHook = h;
+}
+
+int CallOnGroupInstanceBindExtensionRequestHook(GroupInstanceBindExtensionRequest* request) {
+    if (groupInstanceBindExtensionRequestHook == 0)
+        return GroupHookStatusNoHook;
+
+    groupInstanceBindExtensionRequestHook(request);
+    return GroupHookStatusOK;
+}
