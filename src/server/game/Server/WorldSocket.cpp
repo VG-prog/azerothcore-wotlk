@@ -555,10 +555,8 @@ void WorldSocket::HandleAuthSession(WorldPacket& recvPacket)
 
 void WorldSocket::HandleAuthSessionCallback(std::shared_ptr<ClientAuthSession> authSession, PreparedQueryResult result)
 {
-    // Stop if the account is not found
     if (!result)
     {
-        // We can not log here, as we do not know the account. Thus, no accountId.
         SendAuthResponseError(AUTH_UNKNOWN_ACCOUNT);
         LOG_ERROR("network", "WorldSocket::HandleAuthSession: Sent Auth Response (unknown account).");
         DelayedCloseSocket();
@@ -567,23 +565,23 @@ void WorldSocket::HandleAuthSessionCallback(std::shared_ptr<ClientAuthSession> a
 
     AccountInfo account(result->Fetch());
 
-    // For hook purposes, we get Remoteaddress at this point.
-    std::string address = sConfigMgr->GetOption<bool>("AllowLoggingIPAddressesInDatabase", true, true) ? GetRemoteIpAddress().to_string() : "0.0.0.0";
+    bool const clusterMode = sToCloud9Sidecar->ClusterModeEnabled();
 
-    LoginDatabasePreparedStatement* stmt = nullptr;
+    std::string address = sConfigMgr->GetOption<bool>("AllowLoggingIPAddressesInDatabase", true, true)
+        ? GetRemoteIpAddress().to_string()
+        : "0.0.0.0";
 
-    // As we don't know if attempted login process by ip works, we update last_attempt_ip right away
-    stmt = LoginDatabase.GetPreparedStatement(LOGIN_UPD_LAST_ATTEMPT_IP);
+    LoginDatabasePreparedStatement* stmt = LoginDatabase.GetPreparedStatement(LOGIN_UPD_LAST_ATTEMPT_IP);
     stmt->SetData(0, address);
     stmt->SetData(1, authSession->Account);
     LoginDatabase.Execute(stmt);
-    // This also allows to check for possible "hack" attempts on account
 
-    if (!sToCloud9Sidecar->ClusterModeEnabled())
-        // even if auth credentials are bad, try using the session key we have - client cannot read auth response error without it
+    // IMPORTANT:
+    // In cluster mode, ToCloud9 gateway terminates/handles the client stream.
+    // Do NOT initialize worldserver packet crypto here or incoming packets become malformed.
+    if (!clusterMode)
         _authCrypt.Init(account.SessionKey);
 
-    // First reject the connection if packet contains invalid data or realm state doesn't allow logging in
     if (sWorld->IsClosed())
     {
         SendAuthResponseError(AUTH_REJECT);
@@ -592,7 +590,7 @@ void WorldSocket::HandleAuthSessionCallback(std::shared_ptr<ClientAuthSession> a
         return;
     }
 
-    if (!sToCloud9Sidecar->ClusterModeEnabled() && authSession->RealmID != realm.Id.Realm)
+    if (!clusterMode && authSession->RealmID != realm.Id.Realm)
     {
         SendAuthResponseError(REALM_LIST_REALM_NOT_FOUND);
         LOG_ERROR("network", "WorldSocket::HandleAuthSession: Client {} requested connecting with realm id {} but this realm has id {} set in config.",
@@ -602,9 +600,9 @@ void WorldSocket::HandleAuthSessionCallback(std::shared_ptr<ClientAuthSession> a
     }
 
     bool wardenActive = sWorld->getBoolConfig(CONFIG_WARDEN_ENABLED);
-    if (!sToCloud9Sidecar->ClusterModeEnabled())
+
+    if (!clusterMode)
     {
-        // Must be done before WorldSession is created
         if (wardenActive && account.OS != "Win" && account.OS != "OSX")
         {
             SendAuthResponseError(AUTH_REJECT);
@@ -613,8 +611,7 @@ void WorldSocket::HandleAuthSessionCallback(std::shared_ptr<ClientAuthSession> a
             return;
         }
 
-        // Check that Key and account name are the same on client and server
-        uint8 t[4] = { 0x00,0x00,0x00,0x00 };
+        uint8 t[4] = { 0x00, 0x00, 0x00, 0x00 };
 
         Acore::Crypto::SHA1 sha;
         sha.UpdateData(authSession->Account);
@@ -635,14 +632,12 @@ void WorldSocket::HandleAuthSessionCallback(std::shared_ptr<ClientAuthSession> a
         if (IpLocationRecord const* location = sIPLocation->GetLocationRecord(address))
             _ipCountry = location->CountryCode;
 
-        ///- Re-check ip locking (same check as in auth).
         if (account.IsLockedToIP)
         {
             if (account.LastIP != address)
             {
                 SendAuthResponseError(AUTH_FAILED);
                 LOG_DEBUG("network", "WorldSocket::HandleAuthSession: Sent Auth Response (Account IP differs. Original IP: {}, new IP: {}).", account.LastIP, address);
-                // We could log on hook only instead of an additional db log, however action logger is config based. Better keep DB logging as well
                 sScriptMgr->OnFailedAccountLogin(account.Id);
                 DelayedCloseSocket();
                 return;
@@ -654,55 +649,51 @@ void WorldSocket::HandleAuthSessionCallback(std::shared_ptr<ClientAuthSession> a
             {
                 SendAuthResponseError(AUTH_FAILED);
                 LOG_DEBUG("network", "WorldSocket::HandleAuthSession: Sent Auth Response (Account country differs. Original country: {}, new country: {}).", account.LockCountry, _ipCountry);
-                // We could log on hook only instead of an additional db log, however action logger is config based. Better keep DB logging as well
                 sScriptMgr->OnFailedAccountLogin(account.Id);
                 DelayedCloseSocket();
                 return;
             }
         }
+    }
 
-        //! Negative mutetime indicates amount of minutes to be muted effective on next login - which is now.
-        if (account.MuteTime < 0)
-        {
-            account.MuteTime = GameTime::GetGameTime().count() + std::llabs(account.MuteTime);
+    if (account.MuteTime < 0)
+    {
+        account.MuteTime = GameTime::GetGameTime().count() + std::llabs(account.MuteTime);
 
-            auto* stmt = LoginDatabase.GetPreparedStatement(LOGIN_UPD_MUTE_TIME_LOGIN);
-            stmt->SetData(0, account.MuteTime);
-            stmt->SetData(1, account.Id);
-            LoginDatabase.Execute(stmt);
-        }
-
-        if (account.IsBanned)
-        {
-            SendAuthResponseError(AUTH_BANNED);
-            LOG_ERROR("network", "WorldSocket::HandleAuthSession: Sent Auth Response (Account banned).");
-            sScriptMgr->OnFailedAccountLogin(account.Id);
-            DelayedCloseSocket();
-            return;
-        }
-
-        // Check locked state for server
-        AccountTypes allowedAccountType = sWorld->GetPlayerSecurityLimit();
-        LOG_DEBUG("network", "Allowed Level: {} Player Level {}", allowedAccountType, account.Security);
-        if (allowedAccountType > SEC_PLAYER && account.Security < allowedAccountType)
-        {
-            SendAuthResponseError(AUTH_UNAVAILABLE);
-            LOG_DEBUG("network", "WorldSocket::HandleAuthSession: User tries to login but his security level is not enough");
-            sScriptMgr->OnFailedAccountLogin(account.Id);
-            DelayedCloseSocket();
-            return;
-        }
-
-        LOG_DEBUG("network", "WorldSocket::HandleAuthSession: Client '{}' authenticated successfully from {}.", authSession->Account, address);
-
-        // Update the last_ip in the database as it was successful for login
-        stmt = LoginDatabase.GetPreparedStatement(LOGIN_UPD_LAST_IP);
-        stmt->SetData(0, address);
-        stmt->SetData(1, authSession->Account);
+        stmt = LoginDatabase.GetPreparedStatement(LOGIN_UPD_MUTE_TIME_LOGIN);
+        stmt->SetData(0, account.MuteTime);
+        stmt->SetData(1, account.Id);
         LoginDatabase.Execute(stmt);
     }
 
-    // At this point, we can safely hook a successful login
+    if (account.IsBanned)
+    {
+        SendAuthResponseError(AUTH_BANNED);
+        LOG_ERROR("network", "WorldSocket::HandleAuthSession: Sent Auth Response (Account banned).");
+        sScriptMgr->OnFailedAccountLogin(account.Id);
+        DelayedCloseSocket();
+        return;
+    }
+
+    AccountTypes allowedAccountType = sWorld->GetPlayerSecurityLimit();
+    LOG_DEBUG("network", "Allowed Level: {} Player Level {}", allowedAccountType, account.Security);
+
+    if (allowedAccountType > SEC_PLAYER && account.Security < allowedAccountType)
+    {
+        SendAuthResponseError(AUTH_UNAVAILABLE);
+        LOG_DEBUG("network", "WorldSocket::HandleAuthSession: User tries to login but his security level is not enough");
+        sScriptMgr->OnFailedAccountLogin(account.Id);
+        DelayedCloseSocket();
+        return;
+    }
+
+    LOG_DEBUG("network", "WorldSocket::HandleAuthSession: Client '{}' authenticated successfully from {}.", authSession->Account, address);
+
+    stmt = LoginDatabase.GetPreparedStatement(LOGIN_UPD_LAST_IP);
+    stmt->SetData(0, address);
+    stmt->SetData(1, authSession->Account);
+    LoginDatabase.Execute(stmt);
+
     sScriptMgr->OnAccountLogin(account.Id);
 
     _authed = true;
@@ -714,12 +705,8 @@ void WorldSocket::HandleAuthSessionCallback(std::shared_ptr<ClientAuthSession> a
 
     _worldSession->ReadAddonsInfo(authSession->AddonInfo);
 
-    // Initialize Warden system only if it is enabled by config
-    if (!sToCloud9Sidecar->ClusterModeEnabled() && wardenActive)
-    {
-        // TODO: move warden outside of a node?
+    if (!clusterMode && wardenActive)
         _worldSession->InitWarden(account.SessionKey, account.OS);
-    }
 
     _worldSession->ValidateAccountFlags();
 
