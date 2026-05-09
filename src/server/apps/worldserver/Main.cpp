@@ -462,7 +462,7 @@ bool StartDB()
     LOG_INFO("server.loading", "> RealmID:              {}", realm.Id.Realm);
 
     ///- Clean the database before starting
-    if (!sToCloud9Sidecar->ClusterModeEnabled())
+    if (!sConfigMgr->GetOption<bool>("Cluster.Enabled", false))
         ClearOnlineAccounts();
 
     ///- Insert version info into DB

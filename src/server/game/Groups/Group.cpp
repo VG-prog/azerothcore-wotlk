@@ -628,6 +628,9 @@ void Group::AddMemberWithGuid(ObjectGuid guid)
     {
         player->SetGroupInvite(nullptr);
 
+        if (IsLeader(player->GetGUID()))
+            player->SetPlayerFlag(PLAYER_FLAGS_GROUP_LEADER);
+
         if (player->GetGroup())
         {
             if (isBGGroup() || isBFGroup())
@@ -2971,6 +2974,13 @@ void Group::ClusterRemoveMember(ObjectGuid memberGuid, ObjectGuid newLeaderGuid)
 
     if (player)
     {
+        WorldPacket data;
+
+        data.Initialize(SMSG_GROUP_LIST, 1 + 1 + 1 + 1 + 8 + 4 + 4 + 8);
+        data << uint8(0x10) << uint8(0) << uint8(0) << uint8(0);
+        data << m_guid << uint32(m_counter) << uint32(0) << uint64(0);
+        player->SendDirectMessage(&data);
+
         if (isBGGroup() || isBFGroup())
             player->RemoveFromBattlegroundOrBattlefieldRaid();
         else

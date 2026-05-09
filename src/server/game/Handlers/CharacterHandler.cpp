@@ -81,7 +81,7 @@ bool LoginQueryHolder::Initialize()
     SetSize(MAX_PLAYER_LOGIN_QUERY);
 
     bool res = true;
-    uint64 rawGUID = m_guid.GetRawValue();
+    uint64 rawGUID = m_guid.GetDBValue();
 
     CharacterDatabasePreparedStatement* stmt = CharacterDatabase.GetPreparedStatement(CHAR_SEL_CHARACTER);
     stmt->SetData(0, rawGUID);

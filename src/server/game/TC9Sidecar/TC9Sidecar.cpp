@@ -62,7 +62,8 @@ void ToCloud9Sidecar::Init(uint16 port, int realmId)
             _assignedMapsByID[i] = false;
 
         for (int i = 0; i < assignedMapsSize; i++)
-            _assignedMapsByID[assignedMaps[i]] = true;
+            if (assignedMaps[i] < MAX_MAP_ID)
+                _assignedMapsByID[assignedMaps[i]] = true;
 
         if (assignedMapsSize > 0)
             free(assignedMaps);
@@ -201,7 +202,15 @@ void ToCloud9Sidecar::OnMapsReassigned(uint32* addedMaps, int addedMapsSize, uin
 
     if (addedMapsSize > 0)
     {
-        std::vector<uint32_t> newMapIDs(addedMaps, addedMaps + addedMapsSize);
+        std::vector<uint32_t> newMapIDs;
+        newMapIDs.reserve(addedMapsSize);
+
+        for (int i = 0; i < addedMapsSize; ++i)
+            if (addedMaps[i] < MAX_MAP_ID)
+                newMapIDs.push_back(addedMaps[i]);
+
+        if (newMapIDs.empty())
+            return;
 
         auto instanceSaveStoragePtr = std::make_shared<InstanceSaveMgr::InstanceSaveHashMap>();
         auto playerBindStoragePtr = std::make_shared<PlayerBindStorage>();

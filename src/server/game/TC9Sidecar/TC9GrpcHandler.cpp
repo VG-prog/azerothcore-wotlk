@@ -28,7 +28,7 @@ GetPlayerItemsByGuidsResponse ToCloud9GrpcHandler::GetPlayerItemsByGuids(uint64 
     Player *player = ObjectAccessor::FindPlayer(ObjectGuid(playerGuid));
     if (!player)
     {
-        GetPlayerItemsByGuidsResponse resp;
+        GetPlayerItemsByGuidsResponse resp{};
         resp.errorCode = PlayerItemErrorCodePlayerNotFound;
         return resp;
     }
@@ -74,7 +74,7 @@ GetPlayerItemsByGuidsResponse ToCloud9GrpcHandler::GetPlayerItemsByGuids(uint64 
         itemsResultsItr++;
     }
 
-    GetPlayerItemsByGuidsResponse resp;
+    GetPlayerItemsByGuidsResponse resp{};
     resp.errorCode = PlayerItemErrorCodeNoError;
     resp.items = itemsResult;
     resp.itemsSize = itemsFound;
@@ -86,7 +86,7 @@ RemoveItemsWithGuidsFromPlayerResponse ToCloud9GrpcHandler::RemoveItemsWithGuids
     Player *player = ObjectAccessor::FindPlayer(ObjectGuid(playerGuid));
     if (!player)
     {
-        RemoveItemsWithGuidsFromPlayerResponse resp;
+        RemoveItemsWithGuidsFromPlayerResponse resp{};
         resp.errorCode = PlayerItemErrorCodePlayerNotFound;
         return resp;
     }
@@ -136,7 +136,7 @@ RemoveItemsWithGuidsFromPlayerResponse ToCloud9GrpcHandler::RemoveItemsWithGuids
         itemsResultsItr++;
     }
 
-    RemoveItemsWithGuidsFromPlayerResponse resp;
+    RemoveItemsWithGuidsFromPlayerResponse resp{};
     resp.errorCode = PlayerItemErrorCodeNoError;
     resp.updatedItems = itemsResult;
     resp.updatedItemsSize = itemsResultsItr;
@@ -190,12 +190,12 @@ GetMoneyForPlayerResponse ToCloud9GrpcHandler::GetMoneyForPlayer(uint64 playerGu
     Player *player = ObjectAccessor::FindPlayer(ObjectGuid(playerGuid));
     if (!player)
     {
-        GetMoneyForPlayerResponse resp;
+        GetMoneyForPlayerResponse resp{};
         resp.errorCode = PlayerMoneyErrorCodePlayerNotFound;
         return resp;
     }
 
-    GetMoneyForPlayerResponse resp;
+    GetMoneyForPlayerResponse resp{};
     resp.errorCode = PlayerMoneyErrorCodeNoError;
     resp.money = player->GetMoney();
     return resp;
@@ -206,20 +206,20 @@ ModifyMoneyForPlayerResponse ToCloud9GrpcHandler::ModifyMoneyForPlayer(uint64 pl
     Player *player = ObjectAccessor::FindPlayer(ObjectGuid(playerGuid));
     if (!player)
     {
-        ModifyMoneyForPlayerResponse resp;
+        ModifyMoneyForPlayerResponse resp{};
         resp.errorCode = PlayerMoneyErrorCodePlayerNotFound;
         return resp;
     }
 
     if (!player->ModifyMoney(value, true))
     {
-        ModifyMoneyForPlayerResponse resp;
+        ModifyMoneyForPlayerResponse resp{};
         resp.errorCode = PlayerMoneyErrorCodeToMuchMoney;
         resp.newMoneyValue = player->GetMoney();
         return resp;
     }
 
-    ModifyMoneyForPlayerResponse resp;
+    ModifyMoneyForPlayerResponse resp{};
     resp.errorCode = PlayerMoneyErrorCodeNoError;
     resp.newMoneyValue = player->GetMoney();
     return resp;
@@ -230,12 +230,12 @@ CanPlayerInteractWithGOAndTypeResponse ToCloud9GrpcHandler::CanPlayerInteractWit
     Player *player = ObjectAccessor::FindPlayer(ObjectGuid(playerGuid));
     if (!player)
     {
-        CanPlayerInteractWithGOAndTypeResponse resp;
+        CanPlayerInteractWithGOAndTypeResponse resp{};
         resp.errorCode = PlayerInteractionErrorCodeCodePlayerNotFound;
         return resp;
     }
 
-    CanPlayerInteractWithGOAndTypeResponse resp;
+    CanPlayerInteractWithGOAndTypeResponse resp{};
     resp.errorCode = PlayerInteractionErrorCodeNoError;
     resp.canInteract = player->GetGameObjectIfCanInteractWith(ObjectGuid(go), (GameobjectTypes)goType) != nullptr;
     return resp;
@@ -246,12 +246,12 @@ CanPlayerInteractWithNPCAndFlagsResponse ToCloud9GrpcHandler::CanPlayerInteractW
     Player *player = ObjectAccessor::FindPlayer(ObjectGuid(playerGuid));
     if (!player)
     {
-        CanPlayerInteractWithNPCAndFlagsResponse resp;
+        CanPlayerInteractWithNPCAndFlagsResponse resp{};
         resp.errorCode = PlayerInteractionErrorCodeCodePlayerNotFound;
         return resp;
     }
 
-    CanPlayerInteractWithNPCAndFlagsResponse resp;
+    CanPlayerInteractWithNPCAndFlagsResponse resp{};
     resp.errorCode = PlayerInteractionErrorCodeNoError;
     resp.canInteract = player->GetNPCIfCanInteractWith(ObjectGuid(npc), (NPCFlags)unitFlags) != nullptr;
     return resp;
@@ -262,7 +262,7 @@ BattlegroundStartResponse ToCloud9GrpcHandler::StartBattleground(BattlegroundSta
     PvPDifficultyEntry const* pvpEntry = GetBattlegroundBracketByLevel(req->mapID, req->bracketLvl);
     if (!pvpEntry)
     {
-        BattlegroundStartResponse resp;
+        BattlegroundStartResponse resp{};
         resp.errorCode = BattlegroundErrorFailedToCreateBG;
         return resp;
     }
@@ -272,17 +272,20 @@ BattlegroundStartResponse ToCloud9GrpcHandler::StartBattleground(BattlegroundSta
     Battleground* bg = sBattlegroundMgr->CreateNewBattleground(bgTypeId, pvpEntry, req->arenaType, req->isRated);
     if (!bg)
     {
-        BattlegroundStartResponse resp;
+        BattlegroundStartResponse resp{};
         resp.errorCode = BattlegroundErrorFailedToCreateBG;
         return resp;
     }
 
     bg->StartBattleground();
 
-    bg->IncreaseInvitedCount(TEAM_HORDE);
-    bg->IncreaseInvitedCount(TEAM_ALLIANCE);
+    for (int i = 0; i < req->hordePlayersToAddSize; ++i)
+        bg->IncreaseInvitedCount(TEAM_HORDE);
 
-    BattlegroundStartResponse resp;
+    for (int i = 0; i < req->alliancePlayersToAddSize; ++i)
+        bg->IncreaseInvitedCount(TEAM_ALLIANCE);
+
+    BattlegroundStartResponse resp{};
     resp.errorCode = BattlegroundErrorCodeNoError;
     resp.instanceID = bg->GetInstanceID();
     resp.instanceClientID = bg->GetClientInstanceID();

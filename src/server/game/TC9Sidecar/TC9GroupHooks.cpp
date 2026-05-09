@@ -13,6 +13,14 @@
 
 void ToCloud9GroupHooks::OnGroupCreated(EventObjectGroup* group)
 {
+    if (!group)
+        return;
+
+    if (Group* existing = sGroupMgr->GetGroupByGUID(group->guid))
+    {
+        existing->ForcedDisband(true);
+    }
+
     LOG_INFO("server", "Group created. ID: {}; Leader: {}.", group->guid, group->leader);
 
     Group* g = new Group();

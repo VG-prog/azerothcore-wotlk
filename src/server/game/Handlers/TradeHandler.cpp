@@ -507,77 +507,6 @@ void WorldSession::HandleAcceptTradeOpcode(WorldPacket& /*recvPacket*/)
 
         bool needsCrossrealmHandling = sToCloud9Sidecar->IsCrossrealm() && _player->GetGUID().GetRealmID() != trader->GetGUID().GetRealmID();
 
-        // Create new items for crossrealm usage.
-        if (needsCrossrealmHandling)
-        {
-            CharacterDatabasePreparedStatement* stmt = nullptr;
-            CharacterDatabaseTransaction trans = CharacterDatabase.BeginTransaction();
-            stmt = CharacterDatabase.GetPreparedStatement(CHAR_NO_OP_PROVIDE_REALM_CONTEXT);
-            stmt->SetData(0, _player->GetGUID().GetRealmID());
-            trans->Append(stmt);
-
-            for (uint8 i = 0; i < TRADE_SLOT_TRADED_COUNT; i++)
-            {
-                if (myItems[i])
-                {
-                    Item* newItem = myItems[i]->CloneItem(myItems[i]->GetCount(), trader);
-                    if (!newItem)
-                    {
-                        ItemPosCountVec playerDst;
-                        if (_player->CanStoreItem(NULL_BAG, NULL_SLOT, playerDst, myItems[i], false) == EQUIP_ERR_OK)
-                            _player->MoveItemToInventory(playerDst, myItems[i], true, true);
-
-                        // Should we handle else statement here?
-
-                        continue;
-                    }
-
-                    stmt = CharacterDatabase.GetPreparedStatement(CHAR_DEL_ITEM_INSTANCE);
-                    stmt->SetData(0, myItems[i]->GetGUID().GetCounter());
-                    trans->Append(stmt);
-
-                    delete myItems[i];
-
-                    myItems[i] = newItem;
-                }
-            }
-            CharacterDatabase.CommitTransaction(trans);
-
-            trans = CharacterDatabase.BeginTransaction();
-
-            stmt = CharacterDatabase.GetPreparedStatement(CHAR_NO_OP_PROVIDE_REALM_CONTEXT);
-            stmt->SetData(0, trader->GetGUID().GetRealmID());
-            trans->Append(stmt);
-
-            for (uint8 i = 0; i < TRADE_SLOT_TRADED_COUNT; i++)
-            {
-                if (hisItems[i])
-                {
-                    Item* newItem = hisItems[i]->CloneItem(hisItems[i]->GetCount(), _player);
-                    if (!newItem)
-                    {
-                        ItemPosCountVec playerDst;
-                        if (trader->CanStoreItem(NULL_BAG, NULL_SLOT, playerDst, hisItems[i], false) == EQUIP_ERR_OK)
-                            trader->MoveItemToInventory(playerDst, hisItems[i], true, true);
-
-                        // Should we handle else statement here?
-
-                        continue;
-                    }
-
-                    stmt = CharacterDatabase.GetPreparedStatement(CHAR_DEL_ITEM_INSTANCE);
-                    stmt->SetData(0, hisItems[i]->GetGUID().GetCounter());
-                    trans->Append(stmt);
-
-                    delete hisItems[i];
-
-                    hisItems[i] = newItem;
-                }
-            }
-            CharacterDatabase.CommitTransaction(trans);
-
-        }
-
         // execute trade: 2. store
         moveItems(myItems, hisItems);
 
@@ -652,10 +581,20 @@ void WorldSession::HandleAcceptTradeOpcode(WorldPacket& /*recvPacket*/)
         if (needsCrossrealmHandling)
         {
             CharacterDatabaseTransaction trans = CharacterDatabase.BeginTransaction();
+
+            CharacterDatabasePreparedStatement* stmt = CharacterDatabase.GetPreparedStatement(CHAR_NO_OP_PROVIDE_REALM_CONTEXT);
+            stmt->SetData(0, _player->GetGUID().GetRealmID());
+            trans->Append(stmt);
+
             _player->SaveInventoryAndGoldToDB(trans);
             CharacterDatabase.CommitTransaction(trans);
 
             trans = CharacterDatabase.BeginTransaction();
+
+            stmt = CharacterDatabase.GetPreparedStatement(CHAR_NO_OP_PROVIDE_REALM_CONTEXT);
+            stmt->SetData(0, trader->GetGUID().GetRealmID());
+            trans->Append(stmt);
+
             trader->SaveInventoryAndGoldToDB(trans);
             CharacterDatabase.CommitTransaction(trans);
         }

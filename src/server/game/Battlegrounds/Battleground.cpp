@@ -1092,7 +1092,7 @@ void Battleground::RemovePlayerAtLeave(Player* player)
     if (participant)
     {
         if (sToCloud9Sidecar->ClusterModeEnabled())
-            sToCloud9Sidecar->OnPlayerLeftBattleground(player->GetGUID().GetCounter(),
+            sToCloud9Sidecar->OnPlayerLeftBattleground(player->GetGUID().GetRawValue(),
                                                        player->GetGUID().GetRealmID(),
                                                        GetInstanceID());
 

@@ -416,7 +416,7 @@ void InstanceSaveMgr::LoadCharacterBinds()
         {
             Field* fields = result->Fetch();
 
-            ObjectGuid guid(fields[0].Get<uint64>());
+            ObjectGuid guid = ObjectGuid::CreatePlayerFromDBValue(fields[0].Get<uint64>());
             uint32 instanceId = fields[1].Get<uint32>();
             bool perm = fields[2].Get<bool>();
             bool extended = fields[3].Get<bool>();
@@ -430,7 +430,7 @@ void InstanceSaveMgr::LoadCharacterBinds()
                     if (bind.perm) // already loaded perm -> delete currently checked one from db
                     {
                         CharacterDatabasePreparedStatement* stmt = CharacterDatabase.GetPreparedStatement(CHAR_DEL_CHAR_INSTANCE_BY_INSTANCE_GUID);
-                        stmt->SetData(0, guid.GetRawValue());
+                        stmt->SetData(0, guid.GetDBValue());
                         stmt->SetData(1, instanceId);
                         CharacterDatabase.Execute(stmt);
                         continue;
@@ -438,7 +438,7 @@ void InstanceSaveMgr::LoadCharacterBinds()
                     else // override temp bind by newest one
                     {
                         CharacterDatabasePreparedStatement* stmt = CharacterDatabase.GetPreparedStatement(CHAR_DEL_CHAR_INSTANCE_BY_INSTANCE_GUID);
-                        stmt->SetData(0, guid.GetRawValue());
+                        stmt->SetData(0, guid.GetDBValue());
                         stmt->SetData(1, bind.save->GetInstanceId());
                         CharacterDatabase.Execute(stmt);
                         bind.save->RemovePlayer(guid, this);
@@ -507,7 +507,7 @@ void InstanceSaveMgr::LoadInstanceSavesAndBindsForMapIDs(std::vector<uint32> map
         {
             Field* fields = result->Fetch();
 
-            ObjectGuid guid(fields[0].Get<uint64>());
+            ObjectGuid guid = ObjectGuid::CreatePlayerFromDBValue(fields[0].Get<uint64>());
             uint32 instanceId = fields[1].Get<uint32>();
             bool perm = fields[2].Get<bool>();
             bool extended = fields[3].Get<bool>();
@@ -526,7 +526,7 @@ void InstanceSaveMgr::LoadInstanceSavesAndBindsForMapIDs(std::vector<uint32> map
                 if (bind.perm) // already loaded perm -> delete currently checked one from db
                 {
                     CharacterDatabasePreparedStatement* stmt = CharacterDatabase.GetPreparedStatement(CHAR_DEL_CHAR_INSTANCE_BY_INSTANCE_GUID);
-                    stmt->SetData(0, guid.GetRawValue());
+                    stmt->SetData(0, guid.GetDBValue());
                     stmt->SetData(1, instanceId);
                     CharacterDatabase.Execute(stmt);
                     continue;
@@ -534,7 +534,7 @@ void InstanceSaveMgr::LoadInstanceSavesAndBindsForMapIDs(std::vector<uint32> map
                 else // override temp bind by newest one
                 {
                     CharacterDatabasePreparedStatement* stmt = CharacterDatabase.GetPreparedStatement(CHAR_DEL_CHAR_INSTANCE_BY_INSTANCE_GUID);
-                    stmt->SetData(0, guid.GetRawValue());
+                    stmt->SetData(0, guid.GetDBValue());
                     stmt->SetData(1, bind.save->GetInstanceId());
                     CharacterDatabase.Execute(stmt);
                     bind.save->RemovePlayer(guid, this);
@@ -557,8 +557,24 @@ void InstanceSaveMgr::MergeWithNewInstanceSaves(InstanceSaveHashMap newInstanceS
         InstanceSaveHashMap::iterator currentSave = m_instanceSaveById.find(itr->first);
         if (currentSave != m_instanceSaveById.end())
         {
-            currentSave->second->m_playerList.clear();
-            delete currentSave->second;
+            InstanceSave* oldSave = currentSave->second;
+
+            for (PlayerBindStorage::iterator pItr = playerBindStorage.begin(); pItr != playerBindStorage.end(); ++pItr)
+            {
+                for (uint8 difficulty = 0; difficulty < MAX_DIFFICULTY; ++difficulty)
+                {
+                    for (auto bItr = pItr->second->m[difficulty].begin(); bItr != pItr->second->m[difficulty].end();)
+                    {
+                        if (bItr->second.save == oldSave)
+                            bItr = pItr->second->m[difficulty].erase(bItr);
+                        else
+                            ++bItr;
+                    }
+                }
+            }
+
+            oldSave->m_playerList.clear();
+            delete oldSave;
         }
 
         m_instanceSaveById[itr->first] = itr->second;
@@ -775,7 +791,7 @@ InstancePlayerBind* InstanceSaveMgr::PlayerBindToInstance(ObjectGuid guid, Insta
             CharacterDatabasePreparedStatement* stmt = CharacterDatabase.GetPreparedStatement(CHAR_UPD_CHAR_INSTANCE);
             stmt->SetData(0, save->GetInstanceId());
             stmt->SetData(1, permanent);
-            stmt->SetData(2, guid.GetRawValue());
+            stmt->SetData(2, guid.GetDBValue());
             stmt->SetData(3, bind.save->GetInstanceId());
             CharacterDatabase.Execute(stmt);
         }
@@ -801,7 +817,7 @@ InstancePlayerBind* InstanceSaveMgr::PlayerBindToInstance(ObjectGuid guid, Insta
         CharacterDatabase.CommitTransaction(trans);*/
 
         CharacterDatabasePreparedStatement* stmt = CharacterDatabase.GetPreparedStatement(CHAR_INS_CHAR_INSTANCE);
-        stmt->SetData(0, guid.GetRawValue());
+        stmt->SetData(0, guid.GetDBValue());
         stmt->SetData(1, save->GetInstanceId());
         stmt->SetData(2, permanent);
         CharacterDatabase.Execute(stmt);
@@ -842,7 +858,7 @@ void InstanceSaveMgr::PlayerUnbindInstance(ObjectGuid guid, uint32 mapid, Diffic
         if (deleteFromDB)
         {
             CharacterDatabasePreparedStatement* stmt = CharacterDatabase.GetPreparedStatement(CHAR_DEL_CHAR_INSTANCE_BY_INSTANCE_GUID);
-            stmt->SetData(0, guid.GetRawValue());
+            stmt->SetData(0, guid.GetDBValue());
             stmt->SetData(1, itr->second.save->GetInstanceId());
             CharacterDatabase.Execute(stmt);
         }
@@ -988,7 +1004,7 @@ void InstanceSaveMgr::ClusterSetPlayerBindExtension(ObjectGuid playerGuid, uint3
 
     CharacterDatabasePreparedStatement* stmt = CharacterDatabase.GetPreparedStatement(CHAR_UPD_CHAR_INSTANCE_EXTENDED);
     stmt->SetData(0, extended ? 1 : 0);
-    stmt->SetData(1, playerGuid.GetRawValue());
+    stmt->SetData(1, playerGuid.GetDBValue());
     stmt->SetData(2, bind->save->GetInstanceId());
     trans->Append(stmt);
 
