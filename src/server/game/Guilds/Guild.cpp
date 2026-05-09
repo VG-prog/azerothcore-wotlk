@@ -1077,6 +1077,13 @@ bool Guild::Create(Player* pLeader, std::string_view name)
 
     CharacterDatabaseTransaction trans = CharacterDatabase.BeginTransaction();
 
+    if (sToCloud9Sidecar->IsCrossrealm())
+    {
+        CharacterDatabasePreparedStatement* stmt = CharacterDatabase.GetPreparedStatement(CHAR_NO_OP_PROVIDE_REALM_CONTEXT);
+        stmt->SetData(0, pLeader->GetGUID().GetRealmID());
+        trans->Append(stmt);
+    }
+
     CharacterDatabasePreparedStatement* stmt = CharacterDatabase.GetPreparedStatement(CHAR_DEL_GUILD_MEMBERS);
     stmt->SetData(0, m_id);
     trans->Append(stmt);

@@ -406,13 +406,6 @@ GuildCreateResponse ToCloud9GrpcHandler::CreateGuild(GuildCreateRequest* request
         return response;
     }
 
-    if (sToCloud9Sidecar->IsCrossrealm())
-    {
-        CharacterDatabasePreparedStatement* stmt = CharacterDatabase.GetPreparedStatement(CHAR_NO_OP_PROVIDE_REALM_CONTEXT);
-        stmt->SetData(0, leader->GetGUID().GetRealmID());
-        CharacterDatabase.Execute(stmt);
-    }
-
     Guild* guild = new Guild();
     if (!guild->Create(leader, guildName))
     {

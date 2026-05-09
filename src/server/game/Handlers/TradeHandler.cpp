@@ -507,6 +507,60 @@ void WorldSession::HandleAcceptTradeOpcode(WorldPacket& /*recvPacket*/)
 
         bool needsCrossrealmHandling = sToCloud9Sidecar->IsCrossrealm() && _player->GetGUID().GetRealmID() != trader->GetGUID().GetRealmID();
 
+        if (needsCrossrealmHandling)
+        {
+            CharacterDatabasePreparedStatement* stmt = nullptr;
+            CharacterDatabaseTransaction trans = CharacterDatabase.BeginTransaction();
+
+            stmt = CharacterDatabase.GetPreparedStatement(CHAR_NO_OP_PROVIDE_REALM_CONTEXT);
+            stmt->SetData(0, _player->GetGUID().GetRealmID());
+            trans->Append(stmt);
+
+            for (uint8 i = 0; i < TRADE_SLOT_TRADED_COUNT; ++i)
+            {
+                if (!myItems[i])
+                    continue;
+
+                Item* newItem = myItems[i]->CloneItem(myItems[i]->GetCount(), trader);
+                if (!newItem)
+                    continue;
+
+                stmt = CharacterDatabase.GetPreparedStatement(CHAR_DEL_ITEM_INSTANCE);
+                stmt->SetData(0, myItems[i]->GetGUID().GetCounter());
+                trans->Append(stmt);
+
+                delete myItems[i];
+                myItems[i] = newItem;
+            }
+
+            CharacterDatabase.CommitTransaction(trans);
+
+            trans = CharacterDatabase.BeginTransaction();
+
+            stmt = CharacterDatabase.GetPreparedStatement(CHAR_NO_OP_PROVIDE_REALM_CONTEXT);
+            stmt->SetData(0, trader->GetGUID().GetRealmID());
+            trans->Append(stmt);
+
+            for (uint8 i = 0; i < TRADE_SLOT_TRADED_COUNT; ++i)
+            {
+                if (!hisItems[i])
+                    continue;
+
+                Item* newItem = hisItems[i]->CloneItem(hisItems[i]->GetCount(), _player);
+                if (!newItem)
+                    continue;
+
+                stmt = CharacterDatabase.GetPreparedStatement(CHAR_DEL_ITEM_INSTANCE);
+                stmt->SetData(0, hisItems[i]->GetGUID().GetCounter());
+                trans->Append(stmt);
+
+                delete hisItems[i];
+                hisItems[i] = newItem;
+            }
+
+            CharacterDatabase.CommitTransaction(trans);
+        }
+
         // execute trade: 2. store
         moveItems(myItems, hisItems);
 

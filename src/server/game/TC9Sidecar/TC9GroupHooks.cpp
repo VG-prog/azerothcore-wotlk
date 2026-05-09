@@ -198,20 +198,25 @@ void ToCloud9GroupHooks::OnGroupInstanceResetRequest(GroupInstanceResetRequest* 
     if (!request)
         return;
 
-    ObjectGuid playerGuid(request->playerGuid);
+    Group* group = sGroupMgr->GetGroupByGUID(request->groupGuid);
+    if (!group)
+        return;
 
-    if (Player* player = ObjectAccessor::FindConnectedPlayer(playerGuid))
+    Difficulty difficulty = Difficulty(request->difficulty);
+
+    group->DoForAllMembers([&](Player* player)
     {
-        Difficulty difficulty = Difficulty(request->difficulty);
+        if (!player)
+            return;
+
+        ObjectGuid playerGuid = player->GetGUID();
 
         if (InstancePlayerBind* bind = sInstanceSaveMgr->PlayerGetBoundInstance(playerGuid, request->mapId, difficulty))
-        {
             if (bind->save)
                 sInstanceSaveMgr->PlayerUnbindInstance(playerGuid, request->mapId, difficulty, true, player);
-        }
 
         player->SendRaidInfo();
-    }
+    });
 }
 
 void ToCloud9GroupHooks::OnGroupInstanceBindExtensionRequest(GroupInstanceBindExtensionRequest* request)

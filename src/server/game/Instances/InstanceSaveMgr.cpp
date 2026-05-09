@@ -590,7 +590,13 @@ void InstanceSaveMgr::MergeWithNewInstanceSaves(InstanceSaveHashMap newInstanceS
         for (uint8 difficulty = 0; difficulty < MAX_DIFFICULTY; ++difficulty)
         {
             for (auto const& bindPair : itr->second->m[difficulty])
+            {
+                auto oldBind = current->m[difficulty].find(bindPair.first);
+                if (oldBind != current->m[difficulty].end() && oldBind->second.save && oldBind->second.save != bindPair.second.save)
+                    oldBind->second.save->m_playerList.erase(itr->first);
+
                 current->m[difficulty][bindPair.first] = bindPair.second;
+            }
         }
 
         delete itr->second;
