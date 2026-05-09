@@ -579,8 +579,9 @@ void WorldSocket::HandleAuthSessionCallback(std::shared_ptr<ClientAuthSession> a
     LoginDatabase.Execute(stmt);
     // This also allows to check for possible "hack" attempts on account
 
-    // even if auth credentials are bad, try using the session key we have - client cannot read auth response error without it
-    _authCrypt.Init(account.SessionKey);
+    if (!sToCloud9Sidecar->ClusterModeEnabled())
+        // even if auth credentials are bad, try using the session key we have - client cannot read auth response error without it
+        _authCrypt.Init(account.SessionKey);
 
     // First reject the connection if packet contains invalid data or realm state doesn't allow logging in
     if (sWorld->IsClosed())
