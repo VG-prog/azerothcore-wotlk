@@ -1563,7 +1563,7 @@ void WorldSession::HandleTC9PrepareForRedirect(WorldPacket& /*recvData*/)
             return;
         }
 
-        LOG_DEBUG("network", "Saved, AccountId = %d", GetAccountId());
+        LOG_DEBUG("network", "Saved, AccountId = {}", GetAccountId());
 
         if (Player* player = GetPlayer())
         {

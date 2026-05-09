@@ -27,6 +27,11 @@ public:
     using AsyncFunction = std::function<T()>;
     using CallbackFunction = std::function<void(T)>;
 
+    AsyncTask(AsyncTask const&) = delete;
+    AsyncTask& operator=(AsyncTask const&) = delete;
+    AsyncTask(AsyncTask&&) noexcept = default;
+    AsyncTask& operator=(AsyncTask&&) noexcept = default;
+
     AsyncTask(AsyncFunction asyncFunc, CallbackFunction callbackFunc)
         : asyncFunc(std::move(asyncFunc)), callbackFunc(std::move(callbackFunc)), isReady(false)
     {

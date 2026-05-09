@@ -200,9 +200,14 @@ bool BattlefieldWG::SetupBattlefield()
 
     _scheduler.Schedule(60s, BATTLEFIELD_TIMER_GROUP_SAVE, [this](TaskContext context)
     {
-        sWorldState->setWorldState(WORLD_STATE_BATTLEFIELD_WG_ACTIVE, Active);
-        sWorldState->setWorldState(WORLD_STATE_BATTLEFIELD_WG_DEFENDER, DefenderTeam);
-        sWorldState->setWorldState(ClockWorldState[0], Timer);
+        if (!sToCloud9Sidecar->ClusterModeEnabled() ||
+            (!sToCloud9Sidecar->IsCrossrealm() && sToCloud9Sidecar->IsMapAssigned(MAP_NORTHREND)))
+        {
+            sWorldState->setWorldState(WORLD_STATE_BATTLEFIELD_WG_ACTIVE, Active);
+            sWorldState->setWorldState(WORLD_STATE_BATTLEFIELD_WG_DEFENDER, DefenderTeam);
+            sWorldState->setWorldState(ClockWorldState[0], Timer);
+        }
+
         context.Repeat();
     });
 
@@ -211,21 +216,6 @@ bool BattlefieldWG::SetupBattlefield()
 
 bool BattlefieldWG::Update(uint32 diff)
 {
-    // TODO: solve this merge conflict.
-    // if (m_saveTimer <= diff)
-    // {
-    //     if (!sToCloud9Sidecar->ClusterModeEnabled() || (!sToCloud9Sidecar->IsCrossrealm() && sToCloud9Sidecar->IsMapAssigned(571)))
-    //     {
-    //         sWorld->setWorldState(BATTLEFIELD_WG_WORLD_STATE_ACTIVE, m_isActive);
-    //         sWorld->setWorldState(BATTLEFIELD_WG_WORLD_STATE_DEFENDER, m_DefenderTeam);
-    //         sWorld->setWorldState(ClockWorldState[0], m_Timer);
-    //     }
-    //     m_saveTimer = 60 * IN_MILLISECONDS;
-    // }
-    // else
-    //     m_saveTimer -= diff;
-
-
     return Battlefield::Update(diff);
 }
 

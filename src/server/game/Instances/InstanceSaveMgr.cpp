@@ -430,7 +430,7 @@ void InstanceSaveMgr::LoadCharacterBinds()
                     if (bind.perm) // already loaded perm -> delete currently checked one from db
                     {
                         CharacterDatabasePreparedStatement* stmt = CharacterDatabase.GetPreparedStatement(CHAR_DEL_CHAR_INSTANCE_BY_INSTANCE_GUID);
-                        stmt->SetData(0, guid.GetCounter());
+                        stmt->SetData(0, guid.GetRawValue());
                         stmt->SetData(1, instanceId);
                         CharacterDatabase.Execute(stmt);
                         continue;
@@ -438,7 +438,7 @@ void InstanceSaveMgr::LoadCharacterBinds()
                     else // override temp bind by newest one
                     {
                         CharacterDatabasePreparedStatement* stmt = CharacterDatabase.GetPreparedStatement(CHAR_DEL_CHAR_INSTANCE_BY_INSTANCE_GUID);
-                        stmt->SetData(0, guid.GetCounter());
+                        stmt->SetData(0, guid.GetRawValue());
                         stmt->SetData(1, bind.save->GetInstanceId());
                         CharacterDatabase.Execute(stmt);
                         bind.save->RemovePlayer(guid, this);
@@ -523,7 +523,7 @@ void InstanceSaveMgr::LoadInstanceSavesAndBindsForMapIDs(std::vector<uint32> map
                 if (bind.perm) // already loaded perm -> delete currently checked one from db
                 {
                     CharacterDatabasePreparedStatement* stmt = CharacterDatabase.GetPreparedStatement(CHAR_DEL_CHAR_INSTANCE_BY_INSTANCE_GUID);
-                    stmt->SetData(0, guid.GetCounter());
+                    stmt->SetData(0, guid.GetRawValue());
                     stmt->SetData(1, instanceId);
                     CharacterDatabase.Execute(stmt);
                     continue;
@@ -531,7 +531,7 @@ void InstanceSaveMgr::LoadInstanceSavesAndBindsForMapIDs(std::vector<uint32> map
                 else // override temp bind by newest one
                 {
                     CharacterDatabasePreparedStatement* stmt = CharacterDatabase.GetPreparedStatement(CHAR_DEL_CHAR_INSTANCE_BY_INSTANCE_GUID);
-                    stmt->SetData(0, guid.GetCounter());
+                    stmt->SetData(0, guid.GetRawValue());
                     stmt->SetData(1, bind.save->GetInstanceId());
                     CharacterDatabase.Execute(stmt);
                     bind.save->RemovePlayer(guid, this);
@@ -793,7 +793,7 @@ InstancePlayerBind* InstanceSaveMgr::PlayerBindToInstance(ObjectGuid guid, Insta
         CharacterDatabase.CommitTransaction(trans);*/
 
         CharacterDatabasePreparedStatement* stmt = CharacterDatabase.GetPreparedStatement(CHAR_INS_CHAR_INSTANCE);
-        stmt->SetData(0, guid.GetCounter());
+        stmt->SetData(0, guid.GetRawValue());
         stmt->SetData(1, save->GetInstanceId());
         stmt->SetData(2, permanent);
         CharacterDatabase.Execute(stmt);
