@@ -414,56 +414,56 @@ WorldSocket::ReadDataHandlerResult WorldSocket::ReadDataHandler()
 
     switch (opcode)
     {
-        case CMSG_PING:
+    case CMSG_PING:
+    {
+        LogOpcodeText(opcode, sessionGuard);
+        try
         {
-            LogOpcodeText(opcode, sessionGuard);
-            try
-            {
-                return HandlePing(packet) ? ReadDataHandlerResult::Ok : ReadDataHandlerResult::Error;
-            }
-            catch (ByteBufferException const&)
-            {
-            }
-            LOG_ERROR("network", "WorldSocket::ReadDataHandler(): client {} sent malformed CMSG_PING", GetRemoteIpAddress().to_string());
+            return HandlePing(packet) ? ReadDataHandlerResult::Ok : ReadDataHandlerResult::Error;
+        }
+        catch (ByteBufferException const&)
+        {
+        }
+        LOG_ERROR("network", "WorldSocket::ReadDataHandler(): client {} sent malformed CMSG_PING", GetRemoteIpAddress().to_string());
+        return ReadDataHandlerResult::Error;
+    }
+    case CMSG_AUTH_SESSION:
+    {
+        LogOpcodeText(opcode, sessionGuard);
+        if (_authed)
+        {
+            // locking just to safely log offending user is probably overkill but we are disconnecting him anyway
+            if (sessionGuard.try_lock())
+                LOG_ERROR("network", "WorldSocket::ProcessIncoming: received duplicate CMSG_AUTH_SESSION from {}", _worldSession->GetPlayerInfo());
             return ReadDataHandlerResult::Error;
         }
-        case CMSG_AUTH_SESSION:
+
+        try
         {
-            LogOpcodeText(opcode, sessionGuard);
-            if (_authed)
-            {
-                // locking just to safely log offending user is probably overkill but we are disconnecting him anyway
-                if (sessionGuard.try_lock())
-                    LOG_ERROR("network", "WorldSocket::ProcessIncoming: received duplicate CMSG_AUTH_SESSION from {}", _worldSession->GetPlayerInfo());
-                return ReadDataHandlerResult::Error;
-            }
-
-            try
-            {
-                HandleAuthSession(packet);
-                return ReadDataHandlerResult::WaitingForQuery;
-            }
-            catch (ByteBufferException const&) { }
-
-            LOG_ERROR("network", "WorldSocket::ReadDataHandler(): client {} sent malformed CMSG_AUTH_SESSION", GetRemoteIpAddress().to_string());
-            return ReadDataHandlerResult::Error;
+            HandleAuthSession(packet);
+            return ReadDataHandlerResult::WaitingForQuery;
         }
-        case CMSG_KEEP_ALIVE: /// @todo: handle this packet in the same way of CMSG_TIME_SYNC_RESP
-            sessionGuard.lock();
-            LogOpcodeText(opcode, sessionGuard);
-            if (_worldSession)
-            {
-                _worldSession->ResetTimeOutTime(true);
-                return ReadDataHandlerResult::Ok;
-            }
-            LOG_ERROR("network", "WorldSocket::ReadDataHandler: client {} sent CMSG_KEEP_ALIVE without being authenticated", GetRemoteIpAddress().to_string());
-            return ReadDataHandlerResult::Error;
-        case CMSG_TIME_SYNC_RESP:
-            packetToQueue = new WorldPacket(std::move(packet), GameTime::Now());
-            break;
-        default:
-            packetToQueue = new WorldPacket(std::move(packet));
-            break;
+        catch (ByteBufferException const&) {}
+
+        LOG_ERROR("network", "WorldSocket::ReadDataHandler(): client {} sent malformed CMSG_AUTH_SESSION", GetRemoteIpAddress().to_string());
+        return ReadDataHandlerResult::Error;
+    }
+    case CMSG_KEEP_ALIVE: /// @todo: handle this packet in the same way of CMSG_TIME_SYNC_RESP
+        sessionGuard.lock();
+        LogOpcodeText(opcode, sessionGuard);
+        if (_worldSession)
+        {
+            _worldSession->ResetTimeOutTime(true);
+            return ReadDataHandlerResult::Ok;
+        }
+        LOG_ERROR("network", "WorldSocket::ReadDataHandler: client {} sent CMSG_KEEP_ALIVE without being authenticated", GetRemoteIpAddress().to_string());
+        return ReadDataHandlerResult::Error;
+    case CMSG_TIME_SYNC_RESP:
+        packetToQueue = new WorldPacket(std::move(packet), GameTime::Now());
+        break;
+    default:
+        packetToQueue = new WorldPacket(std::move(packet));
+        break;
     }
 
     sessionGuard.lock();
@@ -527,7 +527,7 @@ void WorldSocket::SendPacket(WorldPacket const& packet)
     _bufferQueue.Enqueue(new EncryptableAndCompressiblePacket(packet, _authCrypt.IsInitialized()));
 }
 
-void WorldSocket::HandleAuthSession(WorldPacket & recvPacket)
+void WorldSocket::HandleAuthSession(WorldPacket& recvPacket)
 {
     std::shared_ptr<ClientAuthSession> authSession = std::make_shared<ClientAuthSession>();
 
@@ -601,99 +601,105 @@ void WorldSocket::HandleAuthSessionCallback(std::shared_ptr<ClientAuthSession> a
     }
 
     bool wardenActive = sWorld->getBoolConfig(CONFIG_WARDEN_ENABLED);
-
-    // Must be done before WorldSession is created
-    if (wardenActive && account.OS != "Win" && account.OS != "OSX")
+    if (!sToCloud9Sidecar->ClusterModeEnabled())
     {
-        SendAuthResponseError(AUTH_REJECT);
-        LOG_ERROR("network", "WorldSocket::HandleAuthSession: Client {} attempted to log in using invalid client OS ({}).", address, account.OS);
-        DelayedCloseSocket();
-        return;
-    }
+        // Must be done before WorldSession is created
+        if (wardenActive && account.OS != "Win" && account.OS != "OSX")
+        {
+            SendAuthResponseError(AUTH_REJECT);
+            LOG_ERROR("network", "WorldSocket::HandleAuthSession: Client {} attempted to log in using invalid client OS ({}).", address, account.OS);
+            DelayedCloseSocket();
+            return;
+        }
 
-    // Check that Key and account name are the same on client and server
-    uint8 t[4] = { 0x00, 0x00, 0x00, 0x00 };
+        // Check that Key and account name are the same on client and server
+        uint8 t[4] = { 0x00,0x00,0x00,0x00 };
 
-    Acore::Crypto::SHA1 sha;
-    sha.UpdateData(authSession->Account);
-    sha.UpdateData(t);
-    sha.UpdateData(authSession->LocalChallenge);
-    sha.UpdateData(_authSeed);
-    sha.UpdateData(account.SessionKey);
-    sha.Finalize();
+        Acore::Crypto::SHA1 sha;
+        sha.UpdateData(authSession->Account);
+        sha.UpdateData(t);
+        sha.UpdateData(authSession->LocalChallenge);
+        sha.UpdateData(_authSeed);
+        sha.UpdateData(account.SessionKey);
+        sha.Finalize();
 
-    if (sha.GetDigest() != authSession->Digest)
-    {
-        SendAuthResponseError(AUTH_FAILED);
-        LOG_ERROR("network", "WorldSocket::HandleAuthSession: Authentication failed for account: {} ('{}') address: {}", account.Id, authSession->Account, address);
-        DelayedCloseSocket();
-        return;
-    }
-
-    if (IpLocationRecord const* location = sIPLocation->GetLocationRecord(address))
-        _ipCountry = location->CountryCode;
-
-    ///- Re-check ip locking.
-    if (account.IsLockedToIP)
-    {
-        if (account.LastIP != address)
+        if (sha.GetDigest() != authSession->Digest)
         {
             SendAuthResponseError(AUTH_FAILED);
-            LOG_DEBUG("network", "WorldSocket::HandleAuthSession: Sent Auth Response (Account IP differs. Original IP: {}, new IP: {}).", account.LastIP, address);
+            LOG_ERROR("network", "WorldSocket::HandleAuthSession: Authentication failed for account: {} ('{}') address: {}", account.Id, authSession->Account, address);
+            DelayedCloseSocket();
+            return;
+        }
+
+        if (IpLocationRecord const* location = sIPLocation->GetLocationRecord(address))
+            _ipCountry = location->CountryCode;
+
+        ///- Re-check ip locking (same check as in auth).
+        if (account.IsLockedToIP)
+        {
+            if (account.LastIP != address)
+            {
+                SendAuthResponseError(AUTH_FAILED);
+                LOG_DEBUG("network", "WorldSocket::HandleAuthSession: Sent Auth Response (Account IP differs. Original IP: {}, new IP: {}).", account.LastIP, address);
+                // We could log on hook only instead of an additional db log, however action logger is config based. Better keep DB logging as well
+                sScriptMgr->OnFailedAccountLogin(account.Id);
+                DelayedCloseSocket();
+                return;
+            }
+        }
+        else if (!account.LockCountry.empty() && account.LockCountry != "00" && !_ipCountry.empty())
+        {
+            if (account.LockCountry != _ipCountry)
+            {
+                SendAuthResponseError(AUTH_FAILED);
+                LOG_DEBUG("network", "WorldSocket::HandleAuthSession: Sent Auth Response (Account country differs. Original country: {}, new country: {}).", account.LockCountry, _ipCountry);
+                // We could log on hook only instead of an additional db log, however action logger is config based. Better keep DB logging as well
+                sScriptMgr->OnFailedAccountLogin(account.Id);
+                DelayedCloseSocket();
+                return;
+            }
+        }
+
+        //! Negative mutetime indicates amount of minutes to be muted effective on next login - which is now.
+        if (account.MuteTime < 0)
+        {
+            account.MuteTime = GameTime::GetGameTime().count() + std::llabs(account.MuteTime);
+
+            auto* stmt = LoginDatabase.GetPreparedStatement(LOGIN_UPD_MUTE_TIME_LOGIN);
+            stmt->SetData(0, account.MuteTime);
+            stmt->SetData(1, account.Id);
+            LoginDatabase.Execute(stmt);
+        }
+
+        if (account.IsBanned)
+        {
+            SendAuthResponseError(AUTH_BANNED);
+            LOG_ERROR("network", "WorldSocket::HandleAuthSession: Sent Auth Response (Account banned).");
             sScriptMgr->OnFailedAccountLogin(account.Id);
             DelayedCloseSocket();
             return;
         }
-    }
-    else if (!account.LockCountry.empty() && account.LockCountry != "00" && !_ipCountry.empty())
-    {
-        if (account.LockCountry != _ipCountry)
+
+        // Check locked state for server
+        AccountTypes allowedAccountType = sWorld->GetPlayerSecurityLimit();
+        LOG_DEBUG("network", "Allowed Level: {} Player Level {}", allowedAccountType, account.Security);
+        if (allowedAccountType > SEC_PLAYER && account.Security < allowedAccountType)
         {
-            SendAuthResponseError(AUTH_FAILED);
-            LOG_DEBUG("network", "WorldSocket::HandleAuthSession: Sent Auth Response (Account country differs. Original country: {}, new country: {}).", account.LockCountry, _ipCountry);
+            SendAuthResponseError(AUTH_UNAVAILABLE);
+            LOG_DEBUG("network", "WorldSocket::HandleAuthSession: User tries to login but his security level is not enough");
             sScriptMgr->OnFailedAccountLogin(account.Id);
             DelayedCloseSocket();
             return;
         }
-    }
 
-    if (account.MuteTime < 0)
-    {
-        account.MuteTime = GameTime::GetGameTime().count() + std::llabs(account.MuteTime);
+        LOG_DEBUG("network", "WorldSocket::HandleAuthSession: Client '{}' authenticated successfully from {}.", authSession->Account, address);
 
-        auto* stmt = LoginDatabase.GetPreparedStatement(LOGIN_UPD_MUTE_TIME_LOGIN);
-        stmt->SetData(0, account.MuteTime);
-        stmt->SetData(1, account.Id);
+        // Update the last_ip in the database as it was successful for login
+        stmt = LoginDatabase.GetPreparedStatement(LOGIN_UPD_LAST_IP);
+        stmt->SetData(0, address);
+        stmt->SetData(1, authSession->Account);
         LoginDatabase.Execute(stmt);
     }
-
-    if (account.IsBanned)
-    {
-        SendAuthResponseError(AUTH_BANNED);
-        LOG_ERROR("network", "WorldSocket::HandleAuthSession: Sent Auth Response (Account banned).");
-        sScriptMgr->OnFailedAccountLogin(account.Id);
-        DelayedCloseSocket();
-        return;
-    }
-
-    AccountTypes allowedAccountType = sWorld->GetPlayerSecurityLimit();
-    LOG_DEBUG("network", "Allowed Level: {} Player Level {}", allowedAccountType, account.Security);
-
-    if (allowedAccountType > SEC_PLAYER && account.Security < allowedAccountType)
-    {
-        SendAuthResponseError(AUTH_UNAVAILABLE);
-        LOG_DEBUG("network", "WorldSocket::HandleAuthSession: User tries to login but his security level is not enough");
-        sScriptMgr->OnFailedAccountLogin(account.Id);
-        DelayedCloseSocket();
-        return;
-    }
-
-    LOG_DEBUG("network", "WorldSocket::HandleAuthSession: Client '{}' authenticated successfully from {}.", authSession->Account, address);
-
-    stmt = LoginDatabase.GetPreparedStatement(LOGIN_UPD_LAST_IP);
-    stmt->SetData(0, address);
-    stmt->SetData(1, authSession->Account);
-    LoginDatabase.Execute(stmt);
 
     // At this point, we can safely hook a successful login
     sScriptMgr->OnAccountLogin(account.Id);
