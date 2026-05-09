@@ -767,7 +767,7 @@ InstancePlayerBind* InstanceSaveMgr::PlayerBindToInstance(ObjectGuid guid, Insta
             CharacterDatabasePreparedStatement* stmt = CharacterDatabase.GetPreparedStatement(CHAR_UPD_CHAR_INSTANCE);
             stmt->SetData(0, save->GetInstanceId());
             stmt->SetData(1, permanent);
-            stmt->SetData(2, guid.GetCounter());
+            stmt->SetData(2, guid.GetRawValue());
             stmt->SetData(3, bind.save->GetInstanceId());
             CharacterDatabase.Execute(stmt);
         }
