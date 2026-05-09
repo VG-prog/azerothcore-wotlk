@@ -97,6 +97,7 @@ typedef struct {
 } GroupMemberStateChanged;
 
 typedef struct {
+    uint32_t groupGuid;
     uint64_t playerGuid;
     uint32_t mapId;
     uint8_t difficulty;

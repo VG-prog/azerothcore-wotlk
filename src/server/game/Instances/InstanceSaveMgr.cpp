@@ -592,8 +592,13 @@ void InstanceSaveMgr::MergeWithNewInstanceSaves(InstanceSaveHashMap newInstanceS
             for (auto const& bindPair : itr->second->m[difficulty])
             {
                 auto oldBind = current->m[difficulty].find(bindPair.first);
-                if (oldBind != current->m[difficulty].end() && oldBind->second.save && oldBind->second.save != bindPair.second.save)
-                    oldBind->second.save->m_playerList.erase(itr->first);
+
+                if (oldBind != current->m[difficulty].end() &&
+                    oldBind->second.save &&
+                    oldBind->second.save != bindPair.second.save)
+                {
+                    oldBind->second.save->RemovePlayer(itr->first, this);
+                }
 
                 current->m[difficulty][bindPair.first] = bindPair.second;
             }
