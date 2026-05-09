@@ -1289,7 +1289,7 @@ void Battleground::AddOrSetPlayerToCorrectBgGroup(Player* player, TeamId teamId)
             if (originalGroup->IsLeader(playerGuid))
             {
                 group->ChangeLeader(playerGuid);
-                group->SendUpdateImmediate();;
+                group->SendUpdateImmediate();
             }
     }
 }

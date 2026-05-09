@@ -660,8 +660,6 @@ void WorldSession::HandleGroupAssistantLeaderOpcode(WorldPacket& recvData)
     recvData >> apply;
 
     group->SetGroupMemberFlag(guid, apply, MEMBER_FLAG_ASSISTANT);
-
-    group->SendUpdateImmediate();
 }
 
 void WorldSession::HandlePartyAssignmentOpcode(WorldPacket& recvData)
@@ -692,8 +690,6 @@ void WorldSession::HandlePartyAssignmentOpcode(WorldPacket& recvData)
         default:
             break;
     }
-
-    group->SendUpdateImmediate();
 }
 
 void WorldSession::HandleRaidReadyCheckOpcode(WorldPacket& recvData)

@@ -299,7 +299,7 @@ void Group::ConvertToLFG(bool restricted /*= true*/)
         CharacterDatabase.Execute(stmt);
     }
 
-    SendUpdateImmediate();;
+    SendUpdateImmediate();
 }
 
 bool Group::CheckLevelForRaid()
@@ -566,7 +566,7 @@ bool Group::AddMember(Player* player)
     return true;
 }
 
-void Group::AddMemberWithGuid(ObjectGuid guid)
+void Group::AddMemberWithGuid(ObjectGuid guid, bool sendUpdate)
 {
     if (IsMember(guid))
         return;
@@ -670,7 +670,8 @@ void Group::AddMemberWithGuid(ObjectGuid guid)
             m_maxEnchantingLevel = player->GetSkillValue(SKILL_ENCHANTING);
     }
 
-    SendUpdateLocal();
+    if (sendUpdate)
+        SendUpdateLocal();
 }
 
 bool Group::RemoveMember(ObjectGuid guid, const RemoveMethod& method /*= GROUP_REMOVEMETHOD_DEFAULT*/, ObjectGuid kicker /*= ObjectGuid::Empty*/, const char* reason /*= nullptr*/)

@@ -43,7 +43,7 @@ void ToCloud9GroupHooks::OnGroupCreated(EventObjectGroup* group)
         sCharacterCache->GetCharacterNameByGuid(g->m_leaderGuid, g->m_leaderName);
 
     for (int i = 0; i < group->membersSize; i++)
-        g->AddMemberWithGuid(ObjectGuid(group->members[i]));
+        g->AddMemberWithGuid(ObjectGuid(group->members[i]), false);
 
     sGroupMgr->AddGroup(g);
     g->SendUpdateLocal();
@@ -93,10 +93,7 @@ void ToCloud9GroupHooks::OnGroupConvertedToRaid(uint32 group)
     LOG_INFO("server", "Group converted to raid. ID: {}.", group);
 
     if (Group* g = sGroupMgr->GetGroupByGUID(group))
-    {
         g->ConvertToRaid();
-        g->SendUpdateLocal();
-    }
 }
 
 void ToCloud9GroupHooks::OnGroupRaidDifficultyChanged(uint32 group, uint8 difficulty)

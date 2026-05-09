@@ -364,7 +364,7 @@ protected:
     void SubGroupCounterDecrease(uint8 subgroup);
     void ToggleGroupMemberFlag(member_witerator slot, uint8 flag, bool apply);
 
-    void AddMemberWithGuid(ObjectGuid guid);
+    void AddMemberWithGuid(ObjectGuid guid, bool sendUpdate = true);
     void ForcedDisband(bool hideDestroy = false);
 
     MemberSlotList      m_memberSlots;
