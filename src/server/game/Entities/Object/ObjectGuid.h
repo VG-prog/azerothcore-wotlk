@@ -145,10 +145,10 @@ class ObjectGuid
         [[nodiscard]] uint32   GetEntry() const { return HasEntry() ? uint32((_guid >> 24) & UI64LIT(0x0000000000FFFFFF)) : 0; }
         [[nodiscard]] uint16   GetRealmID() const { return IsPlayer() ? uint16((_guid >> 32) & UI64LIT(0xFFFF)) : 0; }
 
-        [[nodiscard]] uint64   GetDBValue() const
+        [[nodiscard]] uint64 GetDBValue() const
         {
             if (IsPlayer())
-                return sToCloud9Sidecar->ClusterModeEnabled() ? GetRawValue() : uint64(GetCounter());
+                return GetRealmID() != 0 ? GetRawValue() : uint64(GetCounter());
 
             return uint64(GetCounter());
         }

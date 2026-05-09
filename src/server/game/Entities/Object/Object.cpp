@@ -122,11 +122,10 @@ void Object::_InitValues()
 
 void Object::_Create(ObjectGuid::LowType guidlow, uint32 entry, HighGuid guidhigh)
 {
-    // Cluster generators may return a full raw ObjectGuid, not only a low counter.
-    // If so, preserve it. This is required for crossrealm player/item GUIDs.
     if (sToCloud9Sidecar->ClusterModeEnabled())
     {
-        ObjectGuid raw(guidlow);
+        ObjectGuid raw{ static_cast<uint64>(guidlow) };
+
         if (raw.GetHigh() == guidhigh)
         {
             _Create(raw);
