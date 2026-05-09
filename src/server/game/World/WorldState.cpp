@@ -160,11 +160,17 @@ void WorldState::LoadWorldStates()
 // Setting a worldstate will save it to DB
 void WorldState::setWorldState(uint32 index, uint64 timeValue)
 {
+    bool const exists = _worldstates.find(index) != _worldstates.end();
+
+    // Always update local in-memory worldstate.
+    // In crossrealm/cluster mode this node may still need the value for packets, timers, WG, scripts, etc.
+    _worldstates[index] = timeValue;
+
+    // Crossrealm nodes must not persist worldstates directly.
     if (sToCloud9Sidecar->IsCrossrealm())
         return;
 
-    auto const& it = _worldstates.find(index);
-    if (it != _worldstates.end())
+    if (exists)
     {
         CharacterDatabasePreparedStatement* stmt = CharacterDatabase.GetPreparedStatement(CHAR_UPD_WORLDSTATE);
         stmt->SetData(0, uint32(timeValue));
@@ -178,8 +184,6 @@ void WorldState::setWorldState(uint32 index, uint64 timeValue)
         stmt->SetData(1, uint32(timeValue));
         CharacterDatabase.Execute(stmt);
     }
-
-    _worldstates[index] = timeValue;
 }
 
 uint64 WorldState::getWorldState(uint32 index) const
