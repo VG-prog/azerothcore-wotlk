@@ -55,4 +55,90 @@ typedef void (*OnGroupConvertedToRaidHook) (uint32_t guid);
 void SetOnGroupConvertedToRaidHook(OnGroupConvertedToRaidHook h);
 int CallOnGroupConvertedToRaidHook(uint32_t guid);
 
+typedef struct {
+    uint32_t groupGuid;
+    uint64_t leaderGuid;
+    uint32_t durationMs;
+} GroupReadyCheckStarted;
+
+typedef struct {
+    uint32_t groupGuid;
+    uint64_t memberGuid;
+    uint8_t state; // 0 = waiting, 1 = ready, 2 = not ready
+} GroupReadyCheckMemberState;
+
+typedef struct {
+    uint32_t groupGuid;
+} GroupReadyCheckFinished;
+
+typedef struct {
+    uint32_t groupGuid;
+    uint64_t memberGuid;
+    uint8_t subGroup;
+} GroupMemberSubGroupChanged;
+
+typedef struct {
+    uint32_t groupGuid;
+    uint64_t memberGuid;
+    uint8_t flags;
+    uint8_t roles;
+} GroupMemberFlagsChanged;
+
+typedef struct {
+    uint32_t groupGuid;
+    uint64_t memberGuid;
+    uint8_t online;
+    uint8_t level;
+    uint8_t playerClass;
+    uint32_t zoneId;
+    uint32_t mapId;
+    uint16_t healthPct;
+    uint16_t powerPct;
+} GroupMemberStateChanged;
+
+typedef struct {
+    uint64_t playerGuid;
+    uint32_t mapId;
+    uint8_t difficulty;
+} GroupInstanceResetRequest;
+
+typedef struct {
+    uint64_t playerGuid;
+    uint32_t mapId;
+    uint8_t difficulty;
+    uint8_t extended;
+} GroupInstanceBindExtensionRequest;
+
+typedef void (*OnGroupReadyCheckStartedHook)(GroupReadyCheckStarted* request);
+void SetOnGroupReadyCheckStartedHook(OnGroupReadyCheckStartedHook h);
+int CallOnGroupReadyCheckStartedHook(GroupReadyCheckStarted* request);
+
+typedef void (*OnGroupReadyCheckMemberStateHook)(GroupReadyCheckMemberState* request);
+void SetOnGroupReadyCheckMemberStateHook(OnGroupReadyCheckMemberStateHook h);
+int CallOnGroupReadyCheckMemberStateHook(GroupReadyCheckMemberState* request);
+
+typedef void (*OnGroupReadyCheckFinishedHook)(GroupReadyCheckFinished* request);
+void SetOnGroupReadyCheckFinishedHook(OnGroupReadyCheckFinishedHook h);
+int CallOnGroupReadyCheckFinishedHook(GroupReadyCheckFinished* request);
+
+typedef void (*OnGroupMemberSubGroupChangedHook)(GroupMemberSubGroupChanged* request);
+void SetOnGroupMemberSubGroupChangedHook(OnGroupMemberSubGroupChangedHook h);
+int CallOnGroupMemberSubGroupChangedHook(GroupMemberSubGroupChanged* request);
+
+typedef void (*OnGroupMemberFlagsChangedHook)(GroupMemberFlagsChanged* request);
+void SetOnGroupMemberFlagsChangedHook(OnGroupMemberFlagsChangedHook h);
+int CallOnGroupMemberFlagsChangedHook(GroupMemberFlagsChanged* request);
+
+typedef void (*OnGroupMemberStateChangedHook)(GroupMemberStateChanged* request);
+void SetOnGroupMemberStateChangedHook(OnGroupMemberStateChangedHook h);
+int CallOnGroupMemberStateChangedHook(GroupMemberStateChanged* request);
+
+typedef void (*OnGroupInstanceResetRequestHook)(GroupInstanceResetRequest* request);
+void SetOnGroupInstanceResetRequestHook(OnGroupInstanceResetRequestHook h);
+int CallOnGroupInstanceResetRequestHook(GroupInstanceResetRequest* request);
+
+typedef void (*OnGroupInstanceBindExtensionRequestHook)(GroupInstanceBindExtensionRequest* request);
+void SetOnGroupInstanceBindExtensionRequestHook(OnGroupInstanceBindExtensionRequestHook h);
+int CallOnGroupInstanceBindExtensionRequestHook(GroupInstanceBindExtensionRequest* request);
+
 #endif

@@ -43,7 +43,7 @@ typedef struct { const char *p; ptrdiff_t n; } _GoString_;
 
 #line 1 "cgo-generated-wrapper"
 
-
+#include "guild-api.h"
 
 #line 3 "lib.go"
 
@@ -273,6 +273,16 @@ extern void TC9SetGetMoneyForPlayerHandler(GetMoneyForPlayerHandler h);
 // TC9SetModifyMoneyForPlayerHandler sets handler for modify money for given player request.
 //
 extern void TC9SetModifyMoneyForPlayerHandler(ModifyMoneyForPlayerHandler h);
+
+extern void TC9SetOnGroupReadyCheckStartedHook(OnGroupReadyCheckStartedHook h);
+extern void TC9SetOnGroupReadyCheckMemberStateHook(OnGroupReadyCheckMemberStateHook h);
+extern void TC9SetOnGroupReadyCheckFinishedHook(OnGroupReadyCheckFinishedHook h);
+extern void TC9SetOnGroupMemberSubGroupChangedHook(OnGroupMemberSubGroupChangedHook h);
+extern void TC9SetOnGroupMemberFlagsChangedHook(OnGroupMemberFlagsChangedHook h);
+extern void TC9SetOnGroupMemberStateChangedHook(OnGroupMemberStateChangedHook h);
+extern void TC9SetOnGroupInstanceResetRequestHook(OnGroupInstanceResetRequestHook h);
+extern void TC9SetOnGroupInstanceBindExtensionRequestHook(OnGroupInstanceBindExtensionRequestHook h);
+extern void TC9SetGuildCreateHandler(GuildCreateHandler h);
 
 #ifdef __cplusplus
 }

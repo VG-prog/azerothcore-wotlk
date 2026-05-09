@@ -64,10 +64,11 @@ public:
 
     void ExecuteAsync()
     {
-        // Execute the asynchronous task
-        asyncTask = std::async(std::launch::async, [this]
+        AsyncFunction func = asyncFunc;
+
+        asyncTask = std::async(std::launch::async, [func = std::move(func)]() mutable
         {
-            return asyncFunc();
+            return func();
         });
     }
 
