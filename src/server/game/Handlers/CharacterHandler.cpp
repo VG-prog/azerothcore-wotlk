@@ -692,17 +692,15 @@ void WorldSession::HandlePlayerLoginOpcode(WorldPacket& recvData)
     ObjectGuid playerGuid;
     recvData >> playerGuid;
 
-    if (PlayerLoading() || GetPlayer() != nullptr || !playerGuid.IsPlayer())
+    if (PlayerLoading() || GetPlayer() != nullptr)
+        return;
+
+    if (!sWorld->getBoolConfig(CONFIG_REALM_LOGIN_ENABLED))
     {
-        // limit player interaction with the world
-        if (!sWorld->getBoolConfig(CONFIG_REALM_LOGIN_ENABLED))
-        {
-            WorldPacket data(SMSG_CHARACTER_LOGIN_FAILED, 1);
-            // see LoginFailureReason enum for more reasons
-            data << uint8(LoginFailureReason::NoWorld);
-            SendPacket(&data);
-            return;
-        }
+        WorldPacket data(SMSG_CHARACTER_LOGIN_FAILED, 1);
+        data << uint8(LoginFailureReason::NoWorld);
+        SendPacket(&data);
+        return;
     }
 
     if (!playerGuid.IsPlayer() || !IsLegitCharacterForAccount(playerGuid))

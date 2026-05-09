@@ -50,7 +50,7 @@ void ToCloud9Sidecar::Init(uint16 port, int realmId)
 
     if (_clusterModeEnabled)
     {
-        uint32 *assignedMaps;
+        uint32* assignedMaps = nullptr;
         int assignedMapsSize = 0;
 
         _isCrossrealm = sConfigMgr->GetOption<bool>("Cluster.IsCrossrealm", false);
@@ -61,12 +61,14 @@ void ToCloud9Sidecar::Init(uint16 port, int realmId)
         for (int i = 0; i < MAX_MAP_ID; i++)
             _assignedMapsByID[i] = false;
 
-        for (int i = 0; i < assignedMapsSize; i++)
-            if (assignedMaps[i] < MAX_MAP_ID)
-                _assignedMapsByID[assignedMaps[i]] = true;
+        if (assignedMaps)
+        {
+            for (int i = 0; i < assignedMapsSize; ++i)
+                if (assignedMaps[i] < MAX_MAP_ID)
+                    _assignedMapsByID[assignedMaps[i]] = true;
 
-        if (assignedMapsSize > 0)
             free(assignedMaps);
+        }
 
         SetupHooks();
         SetupGrpcHandlers();
