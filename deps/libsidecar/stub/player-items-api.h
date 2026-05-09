@@ -23,9 +23,9 @@ typedef struct {
     uint8_t slot;
     bool isTradable;
     uint32_t count;
-    uint16_t flags;
+    uint32_t flags;
     uint8_t durability;
-    int8_t randomPropertyID;
+    int32_t randomPropertyID;
     const char* text;
 } PlayerItem;
 
@@ -56,9 +56,9 @@ typedef struct {
     uint64_t itemGuid;
     uint32_t itemEntry;
     uint32_t itemCount;
-    uint16_t itemFlags;
+    uint32_t itemFlags;
     uint8_t itemDurability;
-    int8_t itemRandomPropertyID;
+    int32_t itemRandomPropertyID;
 } AddExistingItemToPlayerRequest;
 
 typedef PlayerItemErrorCode (*AddExistingItemToPlayerHandler) (AddExistingItemToPlayerRequest*);
