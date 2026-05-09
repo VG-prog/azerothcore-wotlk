@@ -1555,6 +1555,14 @@ void WorldSession::HandleTC9PrepareForRedirect(WorldPacket& /*recvData*/)
     m_redirectingToAnotherNode = true;
 
     CharacterDatabaseTransaction trans = CharacterDatabase.BeginTransaction();
+
+    if (sToCloud9Sidecar->IsCrossrealm())
+    {
+        CharacterDatabasePreparedStatement* stmt = CharacterDatabase.GetPreparedStatement(CHAR_NO_OP_PROVIDE_REALM_CONTEXT);
+        stmt->SetData(0, player->GetGUID().GetRealmID());
+        trans->Append(stmt);
+    }
+
     player->SaveToDB(trans, false, true);
     AddTransactionCallback(CharacterDatabase.AsyncCommitTransaction(trans)).AfterComplete([this](bool success)
     {
