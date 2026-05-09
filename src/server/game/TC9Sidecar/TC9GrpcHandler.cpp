@@ -93,6 +93,13 @@ RemoveItemsWithGuidsFromPlayerResponse ToCloud9GrpcHandler::RemoveItemsWithGuids
 
     CharacterDatabaseTransaction trans = CharacterDatabase.BeginTransaction();
 
+    if (sToCloud9Sidecar->IsCrossrealm())
+    {
+        CharacterDatabasePreparedStatement* stmt = CharacterDatabase.GetPreparedStatement(CHAR_NO_OP_PROVIDE_REALM_CONTEXT);
+        stmt->SetData(0, ObjectGuid(playerGuid).GetRealmID());
+        trans->Append(stmt);
+    }
+
     int itemsFound = 0;
     std::unique_ptr<uint64[]> deletedItems(new uint64 [itemsLen]);
     for (int i = 0; i < itemsLen; i++)
@@ -179,6 +186,14 @@ PlayerItemErrorCode ToCloud9GrpcHandler::AddExistingItemToPlayer(AddExistingItem
     player->MoveItemToInventory(dest, item, true);
 
     CharacterDatabaseTransaction trans = CharacterDatabase.BeginTransaction();
+
+    if (sToCloud9Sidecar->IsCrossrealm())
+    {
+        CharacterDatabasePreparedStatement* stmt = CharacterDatabase.GetPreparedStatement(CHAR_NO_OP_PROVIDE_REALM_CONTEXT);
+        stmt->SetData(0, player->GetGUID().GetRealmID());
+        trans->Append(stmt);
+    }
+
     player->SaveInventoryAndGoldToDB(trans);
     CharacterDatabase.CommitTransaction(trans);
 
