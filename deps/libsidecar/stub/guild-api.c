@@ -8,7 +8,7 @@ void SetGuildCreateHandler(GuildCreateHandler h) {
 
 GuildCreateResponse CallGuildCreateHandler(GuildCreateRequest* request) {
     if (guildCreateHandler == 0) {
-        GuildCreateResponse resp = {};
+        GuildCreateResponse resp = { 0 };
         resp.errorCode = GuildCreateErrorCodeNoHandler;
         return resp;
     }

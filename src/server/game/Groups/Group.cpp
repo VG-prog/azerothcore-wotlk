@@ -154,7 +154,7 @@ bool Group::Create(Player* leader)
     m_dungeonDifficulty = DUNGEON_DIFFICULTY_NORMAL;
     m_raidDifficulty = RAID_DIFFICULTY_10MAN_NORMAL;
 
-    if (!isBGGroup() && !isBFGroup())
+    if (!sToCloud9Sidecar->ClusterModeEnabled() && !isBGGroup() && !isBFGroup())
     {
         m_dungeonDifficulty = leader->GetDungeonDifficulty();
         m_raidDifficulty = leader->GetRaidDifficulty();
@@ -270,7 +270,7 @@ void Group::LoadMemberFromDB(ObjectGuid::LowType guidLow, uint8 memberFlags, uin
 
     m_memberSlots.push_back(member);
 
-    if (!isBGGroup() && !isBFGroup())
+    if (!sToCloud9Sidecar->ClusterModeEnabled() && !isBGGroup() && !isBFGroup())
     {
         sCharacterCache->UpdateCharacterGroup(ObjectGuid(HighGuid::Player, guidLow), GetGUID());
     }
@@ -289,7 +289,7 @@ void Group::ConvertToLFG(bool restricted /*= true*/)
         m_lootMethod = NEED_BEFORE_GREED;
     }
 
-    if (!isBGGroup() && !isBFGroup())
+    if (!sToCloud9Sidecar->ClusterModeEnabled() && !isBGGroup() && !isBFGroup())
     {
         CharacterDatabasePreparedStatement* stmt = CharacterDatabase.GetPreparedStatement(CHAR_UPD_GROUP_TYPE);
 
@@ -441,7 +441,7 @@ bool Group::AddMember(Player* player)
     member.roles     = 0;
     m_memberSlots.push_back(member);
 
-    if (!isBGGroup() && !isBFGroup())
+    if (!sToCloud9Sidecar->ClusterModeEnabled() && !isBGGroup() && !isBFGroup())
     {
         sCharacterCache->UpdateCharacterGroup(player->GetGUID(), GetGUID());
     }
@@ -468,7 +468,7 @@ bool Group::AddMember(Player* player)
             m_targetIcons[i].Clear();
     }
 
-    if (!isBGGroup() && !isBFGroup())
+    if (!sToCloud9Sidecar->ClusterModeEnabled() && !isBGGroup() && !isBFGroup())
     {
         CharacterDatabasePreparedStatement* stmt = CharacterDatabase.GetPreparedStatement(CHAR_REP_GROUP_MEMBER);
         stmt->SetData(0, GetGUID().GetCounter());
@@ -619,7 +619,7 @@ void Group::AddMemberWithGuid(ObjectGuid guid, bool sendUpdate)
 
     m_memberSlots.push_back(member);
 
-    if (!isBGGroup() && !isBFGroup())
+    if (!sToCloud9Sidecar->ClusterModeEnabled() && !isBGGroup() && !isBFGroup())
         sCharacterCache->UpdateCharacterGroup(guid, GetGUID());
 
     SubGroupCounterIncrease(subGroup);
@@ -633,7 +633,7 @@ void Group::AddMemberWithGuid(ObjectGuid guid, bool sendUpdate)
 
         if (player->GetGroup())
         {
-            if (isBGGroup() || isBFGroup())
+            if (!sToCloud9Sidecar->ClusterModeEnabled() && !isBGGroup() && !isBFGroup())
                 player->SetBattlegroundOrBattlefieldRaid(this, subGroup);
             else
                 player->SetOriginalGroup(this, subGroup);
@@ -743,7 +743,7 @@ bool Group::RemoveMember(ObjectGuid guid, const RemoveMethod& method /*= GROUP_R
             SubGroupCounterDecrease(slot->group);
             m_memberSlots.erase(slot);
 
-            if (!isBGGroup() && !isBFGroup())
+            if (!sToCloud9Sidecar->ClusterModeEnabled() && !isBGGroup() && !isBFGroup())
             {
                 sCharacterCache->ClearCharacterGroup(guid);
             }
@@ -772,7 +772,7 @@ bool Group::RemoveMember(ObjectGuid guid, const RemoveMethod& method /*= GROUP_R
         }
 
         _homebindIfInstance(player);
-        if (!isBGGroup() && !isBFGroup())
+        if (!sToCloud9Sidecar->ClusterModeEnabled() && !isBGGroup() && !isBFGroup())
             Player::ResetInstances(guid, INSTANCE_RESET_GROUP_LEAVE, false);
 
         sScriptMgr->OnGroupRemoveMember(this, guid, method, kicker, reason);
@@ -865,7 +865,7 @@ void Group::ForcedDisband(bool hideDestroy /* = false */)
 
     for (member_citerator citr = m_memberSlots.begin(); citr != m_memberSlots.end(); ++citr)
     {
-        if (!isBGGroup() && !isBFGroup())
+        if (!sToCloud9Sidecar->ClusterModeEnabled() && !isBGGroup() && !isBFGroup())
         {
             sCharacterCache->ClearCharacterGroup(citr->guid);
         }
@@ -878,7 +878,7 @@ void Group::ForcedDisband(bool hideDestroy /* = false */)
         }
 
         _homebindIfInstance(player);
-        if (!isBGGroup() && !isBFGroup())
+        if (!sToCloud9Sidecar->ClusterModeEnabled() && !isBGGroup() && !isBFGroup())
             Player::ResetInstances(citr->guid, INSTANCE_RESET_GROUP_LEAVE, false);
 
         if (!player)

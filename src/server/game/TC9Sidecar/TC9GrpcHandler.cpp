@@ -387,6 +387,12 @@ GuildCreateResponse ToCloud9GrpcHandler::CreateGuild(GuildCreateRequest* request
         return response;
     }
 
+    if (leader->GetGuildId() != 0)
+    {
+        response.errorCode = GuildCreateErrorCodeInternalError;
+        return response;
+    }
+
     std::string guildName = request->guildName;
     if (guildName.empty())
     {
@@ -398,6 +404,13 @@ GuildCreateResponse ToCloud9GrpcHandler::CreateGuild(GuildCreateRequest* request
     {
         response.errorCode = GuildCreateErrorCodeNameExists;
         return response;
+    }
+
+    if (sToCloud9Sidecar->IsCrossrealm())
+    {
+        CharacterDatabasePreparedStatement* stmt = CharacterDatabase.GetPreparedStatement(CHAR_NO_OP_PROVIDE_REALM_CONTEXT);
+        stmt->SetData(0, leader->GetGUID().GetRealmID());
+        CharacterDatabase.Execute(stmt);
     }
 
     Guild* guild = new Guild();

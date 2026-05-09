@@ -710,7 +710,23 @@ void WorldSession::HandlePlayerLoginOpcode(WorldPacket& recvData)
         return;
     }
 
-    if (!sToCloud9Sidecar->ClusterModeEnabled() && !IsLegitCharacterForAccount(playerGuid))
+    if (sToCloud9Sidecar->ClusterModeEnabled())
+    {
+        uint64 guidValue = playerGuid.GetDBValue();
+
+        PreparedQueryResult result = CharacterDatabase.Query(
+            "SELECT account FROM characters WHERE guid = {}", guidValue);
+
+        if (!result || (*result)[0].Get<uint32>() != GetAccountId())
+        {
+            LOG_ERROR("network", "Account ({}) can't login with that character ({}, db value {}).",
+                GetAccountId(), playerGuid.ToString(), guidValue);
+
+            KickPlayer("Account can't login with this character");
+            return;
+        }
+    }
+    else if (!IsLegitCharacterForAccount(playerGuid))
     {
         LOG_ERROR("network", "Account ({}) can't login with that character ({}).", GetAccountId(), playerGuid.ToString());
         KickPlayer("Account can't login with this character");
