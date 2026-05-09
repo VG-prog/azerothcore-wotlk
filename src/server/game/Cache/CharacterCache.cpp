@@ -90,9 +90,9 @@ void CharacterCache::LoadCharacterCacheStorage()
     LOG_INFO("server.loading", " ");
 }
 
-void CharacterCache::RefreshCacheEntry(uint32 lowGuid)
+void CharacterCache::RefreshCacheEntry(uint64 guidValue)
 {
-    QueryResult result = CharacterDatabase.Query("SELECT guid, name, account, race, gender, class, level FROM characters WHERE guid = {}", lowGuid);
+    QueryResult result = CharacterDatabase.Query("SELECT guid, name, account, race, gender, class, level FROM characters WHERE guid = {}", guidValue);
     if (!result)
         return;
 
@@ -105,7 +105,7 @@ void CharacterCache::RefreshCacheEntry(uint32 lowGuid)
         AddCharacterCacheEntry(guid, fields[2].Get<uint32>(), fields[1].Get<std::string>(), fields[4].Get<uint8>(), fields[3].Get<uint8>(), fields[5].Get<uint8>(), fields[6].Get<uint8>());
     } while (result->NextRow());
 
-    QueryResult mailCountResult = CharacterDatabase.Query("SELECT receiver, COUNT(receiver) FROM mail WHERE receiver = {} GROUP BY receiver", lowGuid);
+    QueryResult mailCountResult = CharacterDatabase.Query("SELECT receiver, COUNT(receiver) FROM mail WHERE receiver = {} GROUP BY receiver", guidValue);
     if (mailCountResult)
     {
         do

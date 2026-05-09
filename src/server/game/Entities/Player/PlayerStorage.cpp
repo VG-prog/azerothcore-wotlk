@@ -7291,8 +7291,8 @@ void Player::_SaveAuras(CharacterDatabaseTransaction trans, bool logout)
         uint8 index = 0;
         stmt = CharacterDatabase.GetPreparedStatement(CHAR_INS_AURA);
         stmt->SetData(index++, GetGUID().GetDBValue());
-        stmt->SetData(index++, itr->second->GetCasterGUID().GetDBValue());
-        stmt->SetData(index++, itr->second->GetCastItemGUID().GetDBValue());
+        stmt->SetData(index++, itr->second->GetCasterGUID().GetRawValue());
+        stmt->SetData(index++, itr->second->GetCastItemGUID().GetRawValue());
         stmt->SetData(index++, itr->second->GetId());
         stmt->SetData(index++, effMask);
         stmt->SetData(index++, recalculateMask);

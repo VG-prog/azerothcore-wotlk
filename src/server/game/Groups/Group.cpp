@@ -645,6 +645,8 @@ void Group::AddMemberWithGuid(ObjectGuid guid)
 
         if (!IsLeader(player->GetGUID()) && !isBGGroup() && !isBFGroup())
         {
+            Player::ResetInstances(player->GetGUID(), INSTANCE_RESET_GROUP_JOIN, false);
+
             if (player->GetDungeonDifficulty() != GetDungeonDifficulty())
             {
                 player->SetDungeonDifficulty(GetDungeonDifficulty());
@@ -2991,6 +2993,8 @@ void Group::ClusterRemoveMember(ObjectGuid memberGuid, ObjectGuid newLeaderGuid)
                 player->SetGroup(nullptr);
 
             player->UpdateForQuestWorldObjects();
+
+            _homebindIfInstance(player);
         }
     }
 
@@ -3000,7 +3004,10 @@ void Group::ClusterRemoveMember(ObjectGuid memberGuid, ObjectGuid newLeaderGuid)
     m_memberSlots.erase(slot);
 
     if (!isBGGroup() && !isBFGroup())
+    {
         sCharacterCache->ClearCharacterGroup(memberGuid);
+        Player::ResetInstances(memberGuid, INSTANCE_RESET_GROUP_LEAVE, false);
+    }
 
     if (m_leaderGuid == memberGuid)
     {
