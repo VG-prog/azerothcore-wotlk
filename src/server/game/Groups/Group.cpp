@@ -270,7 +270,7 @@ void Group::LoadMemberFromDB(ObjectGuid::LowType guidLow, uint8 memberFlags, uin
 
     m_memberSlots.push_back(member);
 
-    if (!sToCloud9Sidecar->ClusterModeEnabled() && !isBGGroup() && !isBFGroup())
+    if (!isBGGroup() && !isBFGroup())
     {
         sCharacterCache->UpdateCharacterGroup(ObjectGuid(HighGuid::Player, guidLow), GetGUID());
     }
@@ -441,7 +441,7 @@ bool Group::AddMember(Player* player)
     member.roles     = 0;
     m_memberSlots.push_back(member);
 
-    if (!sToCloud9Sidecar->ClusterModeEnabled() && !isBGGroup() && !isBFGroup())
+    if (!isBGGroup() && !isBFGroup())
     {
         sCharacterCache->UpdateCharacterGroup(player->GetGUID(), GetGUID());
     }
@@ -619,7 +619,7 @@ void Group::AddMemberWithGuid(ObjectGuid guid, bool sendUpdate)
 
     m_memberSlots.push_back(member);
 
-    if (!sToCloud9Sidecar->ClusterModeEnabled() && !isBGGroup() && !isBFGroup())
+    if (!isBGGroup() && !isBFGroup())
         sCharacterCache->UpdateCharacterGroup(guid, GetGUID());
 
     SubGroupCounterIncrease(subGroup);
@@ -633,13 +633,15 @@ void Group::AddMemberWithGuid(ObjectGuid guid, bool sendUpdate)
 
         if (player->GetGroup())
         {
-            if (!sToCloud9Sidecar->ClusterModeEnabled() && !isBGGroup() && !isBFGroup())
+            if (isBGGroup() || isBFGroup())
                 player->SetBattlegroundOrBattlefieldRaid(this, subGroup);
             else
                 player->SetOriginalGroup(this, subGroup);
         }
         else
+        {
             player->SetGroup(this, subGroup);
+        }
 
         _cancelHomebindIfInstance(player);
 
@@ -743,7 +745,7 @@ bool Group::RemoveMember(ObjectGuid guid, const RemoveMethod& method /*= GROUP_R
             SubGroupCounterDecrease(slot->group);
             m_memberSlots.erase(slot);
 
-            if (!sToCloud9Sidecar->ClusterModeEnabled() && !isBGGroup() && !isBFGroup())
+            if (!isBGGroup() && !isBFGroup())
             {
                 sCharacterCache->ClearCharacterGroup(guid);
             }
@@ -865,7 +867,7 @@ void Group::ForcedDisband(bool hideDestroy /* = false */)
 
     for (member_citerator citr = m_memberSlots.begin(); citr != m_memberSlots.end(); ++citr)
     {
-        if (!sToCloud9Sidecar->ClusterModeEnabled() && !isBGGroup() && !isBFGroup())
+        if (!isBGGroup() && !isBFGroup())
         {
             sCharacterCache->ClearCharacterGroup(citr->guid);
         }
