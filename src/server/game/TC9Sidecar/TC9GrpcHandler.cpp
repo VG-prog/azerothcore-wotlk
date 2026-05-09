@@ -126,10 +126,9 @@ RemoveItemsWithGuidsFromPlayerResponse ToCloud9GrpcHandler::RemoveItemsWithGuids
     }
 
     if (itemsFound > 0)
-    {
         player->SaveInventoryAndGoldToDB(trans);
-        CharacterDatabase.CommitTransaction(trans);
-    }
+
+    CharacterDatabase.CommitTransaction(trans);
 
     // Don't forget to delete on "that" side.
     uint64_t* itemsResult = (uint64_t*)malloc(sizeof(uint64_t) * itemsFound);

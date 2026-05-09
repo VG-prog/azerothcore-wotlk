@@ -201,7 +201,8 @@ bool BattlefieldWG::SetupBattlefield()
     _scheduler.Schedule(60s, BATTLEFIELD_TIMER_GROUP_SAVE, [this](TaskContext context)
     {
         if (!sToCloud9Sidecar->ClusterModeEnabled() ||
-            (!sToCloud9Sidecar->IsCrossrealm() && sToCloud9Sidecar->IsMapAssigned(MAP_NORTHREND)))
+            sToCloud9Sidecar->IsCrossrealm() ||
+            sToCloud9Sidecar->IsMapAssigned(MAP_NORTHREND))
         {
             sWorldState->setWorldState(WORLD_STATE_BATTLEFIELD_WG_ACTIVE, Active);
             sWorldState->setWorldState(WORLD_STATE_BATTLEFIELD_WG_DEFENDER, DefenderTeam);
