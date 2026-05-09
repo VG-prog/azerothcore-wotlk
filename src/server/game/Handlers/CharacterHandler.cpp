@@ -714,10 +714,12 @@ void WorldSession::HandlePlayerLoginOpcode(WorldPacket& recvData)
     {
         uint64 guidValue = playerGuid.GetDBValue();
 
-        PreparedQueryResult result = CharacterDatabase.Query(
+        QueryResult result = CharacterDatabase.Query(
             "SELECT account FROM characters WHERE guid = {}", guidValue);
 
-        if (!result || (*result)[0].Get<uint32>() != GetAccountId())
+        Field* fields = result ? result->Fetch() : nullptr;
+
+        if (!fields || fields[0].Get<uint32>() != GetAccountId())
         {
             LOG_ERROR("network", "Account ({}) can't login with that character ({}, db value {}).",
                 GetAccountId(), playerGuid.ToString(), guidValue);
