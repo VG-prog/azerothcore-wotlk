@@ -1900,7 +1900,7 @@ namespace lfg
             grp->AddLfgHeroicFlag();
 
         // Update group info
-        grp->SendUpdate();
+        grp->SendUpdateImmediate();
     }
 
     uint32 LFGMgr::AddProposal(LfgProposal& proposal)

@@ -290,6 +290,7 @@ public:
 
     void SendUpdate();
     void SendUpdateLocal();
+    void SendUpdateImmediate();
     void SendUpdateToPlayer(ObjectGuid playerGUID, MemberSlot* slot = nullptr);
     void SendClusterMemberStats(MemberSlot const& member);
 

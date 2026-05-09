@@ -429,7 +429,7 @@ void WorldSession::HandleGroupSetLeaderOpcode(WorldPacket& recvData)
 
     // Everything's fine, accepted.
     group->ChangeLeader(guid);
-    group->SendUpdate();
+    group->SendUpdateImmediate();
 }
 
 void WorldSession::HandleGroupDisbandOpcode(WorldPacket& /*recvData*/)
@@ -488,7 +488,7 @@ void WorldSession::HandleLootMethodOpcode(WorldPacket& recvData)
     group->SetLootMethod((LootMethod)lootMethod);
     group->SetMasterLooterGuid(lootMaster);
     group->SetLootThreshold((ItemQualities)lootThreshold);
-    group->SendUpdate();
+    group->SendUpdateImmediate();
 }
 
 void WorldSession::HandleLootRoll(WorldPacket& recvData)
@@ -661,7 +661,7 @@ void WorldSession::HandleGroupAssistantLeaderOpcode(WorldPacket& recvData)
 
     group->SetGroupMemberFlag(guid, apply, MEMBER_FLAG_ASSISTANT);
 
-    group->SendUpdate();
+    group->SendUpdateImmediate();
 }
 
 void WorldSession::HandlePartyAssignmentOpcode(WorldPacket& recvData)
@@ -693,7 +693,7 @@ void WorldSession::HandlePartyAssignmentOpcode(WorldPacket& recvData)
             break;
     }
 
-    group->SendUpdate();
+    group->SendUpdateImmediate();
 }
 
 void WorldSession::HandleRaidReadyCheckOpcode(WorldPacket& recvData)

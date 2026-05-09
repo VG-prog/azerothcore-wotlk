@@ -950,7 +950,7 @@ void WorldSession::HandlePlayerLoginFromDB(LoginQueryHolder const& holder)
     // announce group about member online (must be after add to player list to receive announce to self)
     if (Group* group = pCurrChar->GetGroup())
     {
-        group->SendUpdate();
+        group->SendUpdateImmediate();
         group->ResetMaxEnchantingLevel();
     }
 
@@ -1273,7 +1273,7 @@ void WorldSession::HandlePlayerLoginToCharInWorld(Player* pCurrChar)
     }
 
     if (Group* group = pCurrChar->GetGroup())
-        group->SendUpdate();
+        group->SendUpdateImmediate();
 
     // pussywizard: send instance welcome message as when entering the instance through a portal
     if (MapDifficulty const* mapDiff = GetMapDifficultyData(pCurrChar->GetMap()->GetId(), pCurrChar->GetMap()->GetDifficulty()))

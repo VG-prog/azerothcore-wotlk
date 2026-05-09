@@ -299,7 +299,7 @@ void Group::ConvertToLFG(bool restricted /*= true*/)
         CharacterDatabase.Execute(stmt);
     }
 
-    SendUpdate();
+    SendUpdateImmediate();;
 }
 
 bool Group::CheckLevelForRaid()
@@ -328,7 +328,7 @@ void Group::ConvertToRaid()
         CharacterDatabase.Execute(stmt);
     }
 
-    SendUpdate();
+    SendUpdateImmediate();
 
     // update quest related GO states (quest activity dependent from raid membership)
     for (member_citerator citr = m_memberSlots.begin(); citr != m_memberSlots.end(); ++citr)
@@ -479,7 +479,7 @@ bool Group::AddMember(Player* player)
         CharacterDatabase.Execute(stmt);
     }
 
-    SendUpdate();
+    SendUpdateImmediate();
 
     if (player)
     {
@@ -776,7 +776,7 @@ bool Group::RemoveMember(ObjectGuid guid, const RemoveMethod& method /*= GROUP_R
 
         sScriptMgr->OnGroupRemoveMember(this, guid, method, kicker, reason);
 
-        SendUpdate();
+        SendUpdateImmediate();
 
         if (!validLeader)
         {
@@ -910,7 +910,7 @@ void Group::ForcedDisband(bool hideDestroy /* = false */)
         //we already removed player from group and in player->GetGroup() is his original group, send update
         if (Group* group = player->GetGroup())
         {
-            group->SendUpdate();
+            group->SendUpdateImmediate();
         }
         else
         {
@@ -1821,6 +1821,14 @@ void Group::SendUpdateLocal()
         SendUpdateToPlayer(witr->guid, &(*witr));
 }
 
+void Group::SendUpdateImmediate()
+{
+    if (sToCloud9Sidecar->ClusterModeEnabled() && !isBFGroup() && !isBGGroup())
+        SendUpdateLocal();
+    else
+        SendUpdate();
+}
+
 void Group::SendUpdateToPlayer(ObjectGuid playerGUID, MemberSlot* slot)
 {
     Player* player = ObjectAccessor::FindConnectedPlayer(playerGUID);
@@ -2030,7 +2038,7 @@ void Group::ChangeMembersGroup(ObjectGuid guid, uint8 group)
     }
 
     // Broadcast the changes to the group
-    SendUpdate();
+    SendUpdateImmediate();
 }
 
 // Retrieve the next Round-Roubin player for the group
@@ -2096,13 +2104,13 @@ void Group::UpdateLooterGuid(WorldObject* pLootedObject, bool ifneed)
         if (oldLooterGUID != pNewLooter->GetGUID())
         {
             SetLooterGuid(pNewLooter->GetGUID());
-            SendUpdate();
+            SendUpdateImmediate();
         }
     }
     else
     {
         SetLooterGuid(ObjectGuid::Empty);
-        SendUpdate();
+        SendUpdateImmediate();
     }
 }
 
@@ -2449,7 +2457,7 @@ void Group::SetLfgRoles(ObjectGuid guid, const uint8 roles)
         return;
 
     slot->roles = roles;
-    SendUpdate();
+    SendUpdateImmediate();
 }
 
 bool Group::IsFull() const
@@ -2635,7 +2643,7 @@ void Group::SetGroupMemberFlag(ObjectGuid guid, bool apply, GroupMemberFlags fla
     }
 
     // Broadcast the changes to the group
-    SendUpdate();
+    SendUpdateImmediate();
 }
 
 Difficulty Group::GetDifficulty(bool isRaid) const
