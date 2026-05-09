@@ -484,6 +484,9 @@ void InstanceSaveMgr::LoadInstanceSavesAndBindsForMapIDs(std::vector<uint32> map
             time_t extendedResetTime = 0;
 
             MapEntry const* entry = sMapStore.LookupEntry(mapId);
+            if (!entry)
+                continue;
+
             if (entry->IsRaid() || difficulty > DUNGEON_DIFFICULTY_NORMAL)
                 extendedResetTime = GetExtendedResetTimeFor(mapId, Difficulty(difficulty));
 
@@ -563,13 +566,18 @@ void InstanceSaveMgr::MergeWithNewInstanceSaves(InstanceSaveHashMap newInstanceS
 
     for (PlayerBindStorage::iterator itr = newPlayerBindStorage.begin(); itr != newPlayerBindStorage.end(); ++itr)
     {
-        PlayerBindStorage::iterator currentBind = playerBindStorage.find(itr->first);
-        if (currentBind != playerBindStorage.end())
+        BoundInstancesMapWrapper*& current = playerBindStorage[itr->first];
+
+        if (!current)
+            current = new BoundInstancesMapWrapper;
+
+        for (uint8 difficulty = 0; difficulty < MAX_DIFFICULTY; ++difficulty)
         {
-            delete currentBind->second;
+            for (auto const& bindPair : itr->second->m[difficulty])
+                current->m[difficulty][bindPair.first] = bindPair.second;
         }
 
-        playerBindStorage[itr->first] = itr->second;
+        delete itr->second;
     }
 }
 

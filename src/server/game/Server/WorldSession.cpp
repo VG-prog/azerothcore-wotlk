@@ -619,6 +619,7 @@ void WorldSession::LogoutPlayer(bool save, bool redirecting)
 
     m_playerLogout = true;
     m_playerSave = save;
+    redirecting = redirecting || m_redirectingToAnotherNode;
 
     if (_player)
     {
@@ -1569,6 +1570,7 @@ void WorldSession::HandleTC9PrepareForRedirect(WorldPacket& /*recvData*/)
         {
             player->m_Events.AddEventAtOffset([this]()
             {
+                m_redirectingToAnotherNode = true;
                 KickPlayer("HandlePrepareForRedirect client redirected");
             }, 100ms);
         }
