@@ -3049,8 +3049,8 @@ void Group::SetClusterMemberState(ObjectGuid memberGuid, bool online, uint8 leve
         }
 
         member.clusterStateKnown = true;
-        member.clusterOnline = online || hasLivePayload;
-        member.clusterHasLiveState = online || hasLivePayload;
+        member.clusterOnline = online;
+        member.clusterHasLiveState = online && hasLivePayload;
         member.clusterLevel = newLevel;
         member.clusterClass = newClass;
         member.clusterZoneId = zoneId;
@@ -3068,7 +3068,7 @@ void Group::SetClusterMemberState(ObjectGuid memberGuid, bool online, uint8 leve
                 member.clusterPowerPct = oldPowerPct;
         }
 
-        if (!online && !hasLivePayload)
+        if (!online)
         {
             member.clusterOnline = false;
             member.clusterHasLiveState = false;
@@ -3076,7 +3076,7 @@ void Group::SetClusterMemberState(ObjectGuid memberGuid, bool online, uint8 leve
 
         if (Player* player = ObjectAccessor::FindConnectedPlayer(memberGuid))
         {
-            RefreshClusterMemberStateFromPlayer(player, online || hasLivePayload);
+            RefreshClusterMemberStateFromPlayer(player, online);
             return;
         }
 

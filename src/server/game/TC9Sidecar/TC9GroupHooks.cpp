@@ -229,36 +229,42 @@ void ToCloud9GroupHooks::OnGroupInstanceResetRequest(GroupInstanceResetRequest* 
     if (!request)
         return;
 
+    Difficulty difficulty = Difficulty(request->difficulty);
+
+    auto resetPlayer = [&](Player* player)
+        {
+            if (!player)
+                return;
+
+            ObjectGuid playerGuid = player->GetGUID();
+
+            if (request->mapId == 0)
+            {
+                Player::ResetInstances(playerGuid, INSTANCE_RESET_ALL, false, player);
+                player->SendRaidInfo();
+                return;
+            }
+
+            if (InstancePlayerBind* bind = sInstanceSaveMgr->PlayerGetBoundInstance(playerGuid, request->mapId, difficulty))
+            {
+                if (bind->save)
+                    sInstanceSaveMgr->PlayerUnbindInstance(playerGuid, request->mapId, difficulty, true, player);
+            }
+
+            player->SendRaidInfo();
+        };
+
+    if (request->groupGuid == 0)
+    {
+        resetPlayer(ObjectAccessor::FindConnectedPlayer(TC9PlayerGuid(request->playerGuid)));
+        return;
+    }
+
     Group* group = sGroupMgr->GetGroupByGUID(request->groupGuid);
     if (!group)
         return;
 
-    Difficulty difficulty = Difficulty(request->difficulty);
-
-    group->DoForAllMembers([&](Player* player)
-    {
-        if (!player)
-            return;
-
-        ObjectGuid playerGuid = player->GetGUID();
-
-        // CMSG_RESET_INSTANCES has no map/difficulty payload.
-        // mapId == 0 means reset all resettable instances.
-        if (request->mapId == 0)
-        {
-            Player::ResetInstances(playerGuid, INSTANCE_RESET_ALL, false, player);
-            player->SendRaidInfo();
-            return;
-        }
-
-        if (InstancePlayerBind* bind = sInstanceSaveMgr->PlayerGetBoundInstance(playerGuid, request->mapId, difficulty))
-        {
-            if (bind->save)
-                sInstanceSaveMgr->PlayerUnbindInstance(playerGuid, request->mapId, difficulty, true, player);
-        }
-
-        player->SendRaidInfo();
-    });
+    group->DoForAllMembers(resetPlayer);
 }
 
 void ToCloud9GroupHooks::OnGroupInstanceBindExtensionRequest(GroupInstanceBindExtensionRequest* request)
