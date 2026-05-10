@@ -25,6 +25,8 @@
 #define MAX_MAP_ID 800 // Probably too much, but let's lean towards caution.
 #define DEFAULT_NON_CROSSREALM_REALM_ID 0
 
+class Player;
+
 class ToCloud9Sidecar
 {
 private:
@@ -48,6 +50,8 @@ public:
     void ProcessHooks();
     void ProcessGrpcOrHttpRequests();
     void ProcessAsyncTasks();
+
+    void UpdateGroupMemberState(Player* player, bool online);
 
     uint64 GenerateCharacterGuid(uint16 realmId = DEFAULT_NON_CROSSREALM_REALM_ID);
     uint64 GenerateItemGuid(uint16 realmId = DEFAULT_NON_CROSSREALM_REALM_ID);

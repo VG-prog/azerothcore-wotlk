@@ -45,6 +45,20 @@ void TC9SetOnGroupRaidDifficultyChangedHook(OnGroupRaidDifficultyChangedHook h) 
 //
 void TC9SetOnGroupConvertedToRaidHook(OnGroupConvertedToRaidHook h) { panicWithTC9Unavailable("TC9SetOnGroupConvertedToRaidHook"); }
 
+void TC9UpdateGroupMemberState(
+    uint64_t memberGuid,
+    uint8_t online,
+    uint8_t level,
+    uint8_t playerClass,
+    uint32_t zoneId,
+    uint32_t mapId,
+    uint16_t healthPct,
+    uint16_t powerPct
+)
+{
+    panicWithTC9Unavailable("TC9UpdateGroupMemberState");
+}
+
 void TC9SetGuildCreateHandler(GuildCreateHandler h) { panicWithTC9Unavailable("TC9SetGuildCreateHandler"); }
 
 void TC9SetOnGuildMemberAddedHook(OnGuildMemberAddedHook h) { panicWithTC9Unavailable("TC9SetOnGuildMemberAddedHook"); }

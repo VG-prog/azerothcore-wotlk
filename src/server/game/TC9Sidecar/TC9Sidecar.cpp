@@ -30,6 +30,17 @@
 
 #define AVAILABLE_MAPS_ALL_MAPS ""
 
+namespace
+{
+    uint16 TC9Percent(uint64 current, uint64 max)
+    {
+        if (!max)
+            return 100;
+
+        return uint16(std::min<uint64>(100, current * 100 / max));
+    }
+}
+
 MonitoringDataCollectorResponse HandleMonitoringRequest();
 
 ToCloud9Sidecar* ToCloud9Sidecar::instance()
@@ -166,6 +177,28 @@ uint64 ToCloud9Sidecar::GenerateItemGuid(uint16 realmId)
 uint32 ToCloud9Sidecar::GenerateInstanceGuid(uint16 realmId)
 {
     return uint32(TC9GetNextAvailableInstanceGuid(realmId));
+}
+
+void ToCloud9Sidecar::UpdateGroupMemberState(Player* player, bool online)
+{
+    if (!_clusterModeEnabled || !player)
+        return;
+
+    if (!player->GetGroup() && !player->GetOriginalGroup())
+        return;
+
+    uint8 powerType = player->getPowerType();
+
+    TC9UpdateGroupMemberState(
+        player->GetGUID().GetRawValue(),
+        online ? 1 : 0,
+        player->GetLevel(),
+        player->getClass(),
+        player->GetZoneId(),
+        player->GetMapId(),
+        TC9Percent(player->GetHealth(), player->GetMaxHealth()),
+        TC9Percent(player->GetPower(Powers(powerType)), player->GetMaxPower(Powers(powerType)))
+    );
 }
 
 void ToCloud9Sidecar::OnPlayerLeftBattleground(uint64 playerGUID, uint32 realmID, uint32 instanceID)

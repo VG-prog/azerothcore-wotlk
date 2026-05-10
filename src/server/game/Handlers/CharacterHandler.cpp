@@ -974,7 +974,10 @@ void WorldSession::HandlePlayerLoginFromDB(LoginQueryHolder const& holder)
     if (Group* group = pCurrChar->GetGroup())
     {
         if (sToCloud9Sidecar->ClusterModeEnabled())
+        {
             group->RefreshClusterMemberStateFromPlayer(pCurrChar, true);
+            sToCloud9Sidecar->UpdateGroupMemberState(pCurrChar, true);
+        }
         else
             group->SendUpdateImmediate();
 
@@ -1302,7 +1305,10 @@ void WorldSession::HandlePlayerLoginToCharInWorld(Player* pCurrChar)
     if (Group* group = pCurrChar->GetGroup())
     {
         if (sToCloud9Sidecar->ClusterModeEnabled())
+        {
             group->RefreshClusterMemberStateFromPlayer(pCurrChar, true);
+            sToCloud9Sidecar->UpdateGroupMemberState(pCurrChar, true);
+        }
         else
             group->SendUpdateImmediate();
     }

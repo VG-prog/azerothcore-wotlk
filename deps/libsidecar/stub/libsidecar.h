@@ -183,6 +183,17 @@ extern void TC9SetOnGroupRaidDifficultyChangedHook(OnGroupRaidDifficultyChangedH
 //
 extern void TC9SetOnGroupConvertedToRaidHook(OnGroupConvertedToRaidHook h);
 
+extern void TC9UpdateGroupMemberState(
+    uint64_t memberGuid,
+    uint8_t online,
+    uint8_t level,
+    uint8_t playerClass,
+    uint32_t zoneId,
+    uint32_t mapId,
+    uint16_t healthPct,
+    uint16_t powerPct
+);
+
 // TC9SetOnGuildMemberAddedHook sets hook for guild member added event.
 //
 extern void TC9SetOnGuildMemberAddedHook(OnGuildMemberAddedHook h);

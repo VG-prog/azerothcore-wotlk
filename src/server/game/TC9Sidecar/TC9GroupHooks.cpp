@@ -242,9 +242,20 @@ void ToCloud9GroupHooks::OnGroupInstanceResetRequest(GroupInstanceResetRequest* 
 
         ObjectGuid playerGuid = player->GetGUID();
 
+        // CMSG_RESET_INSTANCES has no map/difficulty payload.
+        // mapId == 0 means reset all resettable instances.
+        if (request->mapId == 0)
+        {
+            Player::ResetInstances(playerGuid, INSTANCE_RESET_ALL, false, player);
+            player->SendRaidInfo();
+            return;
+        }
+
         if (InstancePlayerBind* bind = sInstanceSaveMgr->PlayerGetBoundInstance(playerGuid, request->mapId, difficulty))
+        {
             if (bind->save)
                 sInstanceSaveMgr->PlayerUnbindInstance(playerGuid, request->mapId, difficulty, true, player);
+        }
 
         player->SendRaidInfo();
     });

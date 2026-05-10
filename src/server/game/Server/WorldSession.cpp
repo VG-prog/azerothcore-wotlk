@@ -621,10 +621,14 @@ void WorldSession::LogoutPlayer(bool save, bool redirecting)
     m_playerSave = save;
     redirecting = redirecting || m_redirectingToAnotherNode;
 
-    if (redirecting && _player)
+    if (_player && sToCloud9Sidecar->ClusterModeEnabled())
     {
+        bool const keepOnline = redirecting;
+
         if (Group* group = _player->GetGroup())
-            group->RefreshClusterMemberStateFromPlayer(_player, true);
+            group->RefreshClusterMemberStateFromPlayer(_player, keepOnline);
+
+        sToCloud9Sidecar->UpdateGroupMemberState(_player, keepOnline);
     }
 
     if (_player)
