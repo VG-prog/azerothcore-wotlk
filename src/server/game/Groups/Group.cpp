@@ -1872,7 +1872,9 @@ void Group::SendUpdateToPlayer(ObjectGuid playerGUID, MemberSlot* slot)
         if (slot->guid == citr->guid)
             continue;
 
-        Player* member = ObjectAccessor::FindConnectedPlayer(citr->guid);
+        Player* member = (citr->guid == playerGUID)
+            ? player
+            : ObjectAccessor::FindConnectedPlayer(citr->guid);
 
         uint8 onlineState = MEMBER_STATUS_OFFLINE;
 
@@ -2933,25 +2935,41 @@ void Group::SetClusterMemberState(ObjectGuid memberGuid, bool online, uint8 leve
         if (member.guid != memberGuid)
             continue;
 
-        member.clusterStateKnown = true;
-        member.clusterOnline = online;
-        member.clusterLevel = level;
-        member.clusterClass = playerClass;
-        member.clusterZoneId = zoneId;
-        member.clusterMapId = mapId;
-        member.clusterHealthPct = ClampPct(healthPct);
-        member.clusterPowerPct = ClampPct(powerPct);
+        uint8 newLevel = level ? level : member.clusterLevel;
+        uint8 newClass = playerClass ? playerClass : member.clusterClass;
+        uint16 oldHealthPct = member.clusterHealthPct ? member.clusterHealthPct : 100;
+        uint16 oldPowerPct = member.clusterPowerPct ? member.clusterPowerPct : 100;
 
         if (CharacterCacheEntry const* cache = sCharacterCache->GetCharacterCacheByGuid(memberGuid))
         {
             if (member.name.empty() || member.name == memberGuid.ToString())
                 member.name = cache->Name;
 
-            if (!member.clusterLevel)
-                member.clusterLevel = cache->Level;
+            if (!newLevel)
+                newLevel = cache->Level;
 
-            if (!member.clusterClass)
-                member.clusterClass = cache->Class;
+            if (!newClass)
+                newClass = cache->Class;
+        }
+
+        member.clusterStateKnown = true;
+        member.clusterOnline = online;
+        member.clusterLevel = newLevel;
+        member.clusterClass = newClass;
+        member.clusterZoneId = zoneId;
+        member.clusterMapId = mapId;
+
+        member.clusterHealthPct = ClampPct(healthPct);
+        member.clusterPowerPct = ClampPct(powerPct);
+
+        // Unknown/zero payload from cluster must not make an online member appear dead.
+        if (online && !level && !playerClass)
+        {
+            if (member.clusterHealthPct == 0)
+                member.clusterHealthPct = oldHealthPct;
+
+            if (member.clusterPowerPct == 0)
+                member.clusterPowerPct = oldPowerPct;
         }
 
         if (Player* player = ObjectAccessor::FindConnectedPlayer(memberGuid))

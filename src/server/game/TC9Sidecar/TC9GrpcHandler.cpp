@@ -25,7 +25,8 @@
 
 GetPlayerItemsByGuidsResponse ToCloud9GrpcHandler::GetPlayerItemsByGuids(uint64 playerGuid, uint64* items, int itemsLen)
 {
-    Player *player = ObjectAccessor::FindPlayer(ObjectGuid(playerGuid));
+    ObjectGuid playerObjectGuid = ObjectGuid::CreatePlayerFromDBValue(playerGuid);
+    Player* player = ObjectAccessor::FindPlayer(playerObjectGuid);
     if (!player)
     {
         GetPlayerItemsByGuidsResponse resp{};
@@ -83,7 +84,8 @@ GetPlayerItemsByGuidsResponse ToCloud9GrpcHandler::GetPlayerItemsByGuids(uint64 
 
 RemoveItemsWithGuidsFromPlayerResponse ToCloud9GrpcHandler::RemoveItemsWithGuidsFromPlayer(uint64 playerGuid, uint64* items, int itemsLen, uint64 assignToPlayerGuid)
 {
-    Player *player = ObjectAccessor::FindPlayer(ObjectGuid(playerGuid));
+    ObjectGuid playerObjectGuid = ObjectGuid::CreatePlayerFromDBValue(playerGuid);
+    Player* player = ObjectAccessor::FindPlayer(playerObjectGuid);
     if (!player)
     {
         RemoveItemsWithGuidsFromPlayerResponse resp{};
@@ -201,7 +203,8 @@ PlayerItemErrorCode ToCloud9GrpcHandler::AddExistingItemToPlayer(AddExistingItem
 
 GetMoneyForPlayerResponse ToCloud9GrpcHandler::GetMoneyForPlayer(uint64 playerGuid)
 {
-    Player *player = ObjectAccessor::FindPlayer(ObjectGuid(playerGuid));
+    ObjectGuid playerObjectGuid = ObjectGuid::CreatePlayerFromDBValue(playerGuid);
+    Player* player = ObjectAccessor::FindPlayer(playerObjectGuid);
     if (!player)
     {
         GetMoneyForPlayerResponse resp{};
@@ -217,7 +220,8 @@ GetMoneyForPlayerResponse ToCloud9GrpcHandler::GetMoneyForPlayer(uint64 playerGu
 
 ModifyMoneyForPlayerResponse ToCloud9GrpcHandler::ModifyMoneyForPlayer(uint64 playerGuid, int32 value)
 {
-    Player *player = ObjectAccessor::FindPlayer(ObjectGuid(playerGuid));
+    ObjectGuid playerObjectGuid = ObjectGuid::CreatePlayerFromDBValue(playerGuid);
+    Player* player = ObjectAccessor::FindPlayer(playerObjectGuid);
     if (!player)
     {
         ModifyMoneyForPlayerResponse resp{};
@@ -241,7 +245,8 @@ ModifyMoneyForPlayerResponse ToCloud9GrpcHandler::ModifyMoneyForPlayer(uint64 pl
 
 CanPlayerInteractWithGOAndTypeResponse ToCloud9GrpcHandler::CanPlayerInteractWithGOAndType(uint64 playerGuid, uint64 go, uint8 goType)
 {
-    Player *player = ObjectAccessor::FindPlayer(ObjectGuid(playerGuid));
+    ObjectGuid playerObjectGuid = ObjectGuid::CreatePlayerFromDBValue(playerGuid);
+    Player* player = ObjectAccessor::FindPlayer(playerObjectGuid);
     if (!player)
     {
         CanPlayerInteractWithGOAndTypeResponse resp{};
@@ -257,7 +262,8 @@ CanPlayerInteractWithGOAndTypeResponse ToCloud9GrpcHandler::CanPlayerInteractWit
 
 CanPlayerInteractWithNPCAndFlagsResponse ToCloud9GrpcHandler::CanPlayerInteractWithNPCAndFlags(uint64 playerGuid, uint64 npc, uint32 unitFlags)
 {
-    Player *player = ObjectAccessor::FindPlayer(ObjectGuid(playerGuid));
+    ObjectGuid playerObjectGuid = ObjectGuid::CreatePlayerFromDBValue(playerGuid);
+    Player* player = ObjectAccessor::FindPlayer(playerObjectGuid);
     if (!player)
     {
         CanPlayerInteractWithNPCAndFlagsResponse resp{};
@@ -341,7 +347,8 @@ BattlegroundErrorCode ToCloud9GrpcHandler::AddPlayersToBattleground(Battleground
 
 BattlegroundJoinCheckErrorCode ToCloud9GrpcHandler::CanPlayerJoinBattlegroundQueue(uint64 playerGuid)
 {
-    Player *player = ObjectAccessor::FindPlayer(ObjectGuid(playerGuid));
+    ObjectGuid playerObjectGuid = ObjectGuid::CreatePlayerFromDBValue(playerGuid);
+    Player* player = ObjectAccessor::FindPlayer(playerObjectGuid);
     if (!player)
         return BattlegroundJoinCheckErrorCodePlayerNotFound;
 
@@ -358,7 +365,8 @@ BattlegroundJoinCheckErrorCode ToCloud9GrpcHandler::CanPlayerJoinBattlegroundQue
 
 BattlegroundJoinCheckErrorCode ToCloud9GrpcHandler::CanPlayerTeleportToBattleground(uint64 playerGuid)
 {
-    Player *player = ObjectAccessor::FindPlayer(ObjectGuid(playerGuid));
+    ObjectGuid playerObjectGuid = ObjectGuid::CreatePlayerFromDBValue(playerGuid);
+    Player* player = ObjectAccessor::FindPlayer(playerObjectGuid);
     if (!player)
         return BattlegroundJoinCheckErrorCodePlayerNotFound;
 
@@ -380,7 +388,7 @@ GuildCreateResponse ToCloud9GrpcHandler::CreateGuild(GuildCreateRequest* request
         return response;
     }
 
-    Player* leader = ObjectAccessor::FindConnectedPlayer(ObjectGuid(request->leaderGuid));
+    Player* leader = ObjectAccessor::FindConnectedPlayer(ObjectGuid::CreatePlayerFromDBValue(request->leaderGuid));
     if (!leader)
     {
         response.errorCode = GuildCreateErrorCodeLeaderNotFound;

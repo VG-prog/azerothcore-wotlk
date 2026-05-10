@@ -21,7 +21,7 @@
 
 void ToCloud9GuildHooks::OnGuildMemberAdded(uint64 guild, uint64 character)
 {
-    ObjectGuid guid(character);
+    ObjectGuid guid = ObjectGuid::CreatePlayerFromDBValue(character);
     sCharacterCache->UpdateCharacterGuildId(guid, ObjectGuid::LowType(guild));
 
     Player* player = ObjectAccessor::FindPlayer(guid);
@@ -33,7 +33,7 @@ void ToCloud9GuildHooks::OnGuildMemberAdded(uint64 guild, uint64 character)
 
 void ToCloud9GuildHooks::OnGuildMemberRemoved(uint64 /*guild*/, uint64 character)
 {
-    ObjectGuid guid(character);
+    ObjectGuid guid = ObjectGuid::CreatePlayerFromDBValue(character);
     sCharacterCache->UpdateCharacterGuildId(guid, 0);
 
     Player *player = ObjectAccessor::FindPlayer(guid);
@@ -45,7 +45,7 @@ void ToCloud9GuildHooks::OnGuildMemberRemoved(uint64 /*guild*/, uint64 character
 
 void ToCloud9GuildHooks::OnGuildMemberLeft(uint64 /*guild*/, uint64 character)
 {
-    ObjectGuid guid(character);
+    ObjectGuid guid = ObjectGuid::CreatePlayerFromDBValue(character);
     sCharacterCache->UpdateCharacterGuildId(guid, 0);
 
     Player *player = ObjectAccessor::FindPlayer(guid);
