@@ -70,7 +70,7 @@ void ToCloud9GroupHooks::OnGroupMemberAdded(uint32 group, uint64 member)
     LOG_INFO("server", "Group member added. ID: {}; Member: {}.", group, member);
 
     if (Group* g = sGroupMgr->GetGroupByGUID(group))
-        g->AddMemberWithGuid(ObjectGuid(member));
+        g->AddMemberWithGuid(TC9PlayerGuid(member));
 }
 
 void ToCloud9GroupHooks::OnGroupMemberRemoved(uint32 group, uint64 member, uint64 newLeader)
@@ -219,7 +219,7 @@ void ToCloud9GroupHooks::OnGroupInstanceResetRequest(GroupInstanceResetRequest* 
         if (!player)
             return;
 
-        ObjectGuid playerGuid = TC9PlayerGuid(request->playerGuid);
+        ObjectGuid playerGuid = player->GetGUID();
 
         if (InstancePlayerBind* bind = sInstanceSaveMgr->PlayerGetBoundInstance(playerGuid, request->mapId, difficulty))
             if (bind->save)

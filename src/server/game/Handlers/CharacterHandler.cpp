@@ -969,26 +969,7 @@ void WorldSession::HandlePlayerLoginFromDB(LoginQueryHolder const& holder)
     if (Group* group = pCurrChar->GetGroup())
     {
         if (sToCloud9Sidecar->ClusterModeEnabled())
-        {
-            uint16 healthPct = pCurrChar->GetMaxHealth()
-                ? uint16(std::min<uint32>(100, pCurrChar->GetHealth() * 100 / pCurrChar->GetMaxHealth()))
-                : 100;
-
-            uint16 powerPct = pCurrChar->GetMaxPower(pCurrChar->getPowerType())
-                ? uint16(std::min<uint32>(100, pCurrChar->GetPower(pCurrChar->getPowerType()) * 100 / pCurrChar->GetMaxPower(pCurrChar->getPowerType())))
-                : 100;
-
-            group->SetClusterMemberState(
-                pCurrChar->GetGUID(),
-                true,
-                pCurrChar->GetLevel(),
-                pCurrChar->getClass(),
-                pCurrChar->GetZoneId(),
-                pCurrChar->GetMapId(),
-                healthPct,
-                powerPct
-            );
-        }
+            group->RefreshClusterMemberStateFromPlayer(pCurrChar, true);
         else
             group->SendUpdateImmediate();
 
@@ -1316,26 +1297,7 @@ void WorldSession::HandlePlayerLoginToCharInWorld(Player* pCurrChar)
     if (Group* group = pCurrChar->GetGroup())
     {
         if (sToCloud9Sidecar->ClusterModeEnabled())
-        {
-            uint16 healthPct = pCurrChar->GetMaxHealth()
-                ? uint16(std::min<uint32>(100, pCurrChar->GetHealth() * 100 / pCurrChar->GetMaxHealth()))
-                : 100;
-
-            uint16 powerPct = pCurrChar->GetMaxPower(pCurrChar->getPowerType())
-                ? uint16(std::min<uint32>(100, pCurrChar->GetPower(pCurrChar->getPowerType()) * 100 / pCurrChar->GetMaxPower(pCurrChar->getPowerType())))
-                : 100;
-
-            group->SetClusterMemberState(
-                pCurrChar->GetGUID(),
-                true,
-                pCurrChar->GetLevel(),
-                pCurrChar->getClass(),
-                pCurrChar->GetZoneId(),
-                pCurrChar->GetMapId(),
-                healthPct,
-                powerPct
-            );
-        }
+            group->RefreshClusterMemberStateFromPlayer(pCurrChar, true);
         else
             group->SendUpdateImmediate();
     }

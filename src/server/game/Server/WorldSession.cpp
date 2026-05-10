@@ -621,6 +621,12 @@ void WorldSession::LogoutPlayer(bool save, bool redirecting)
     m_playerSave = save;
     redirecting = redirecting || m_redirectingToAnotherNode;
 
+    if (redirecting && _player)
+    {
+        if (Group* group = _player->GetGroup())
+            group->RefreshClusterMemberStateFromPlayer(_player, true);
+    }
+
     if (_player)
     {
         //! Call script hook before other logout events
@@ -1555,26 +1561,7 @@ void WorldSession::HandleTC9PrepareForRedirect(WorldPacket& /*recvData*/)
     m_redirectingToAnotherNode = true;
 
     if (Group* group = player->GetGroup())
-    {
-        uint16 healthPct = player->GetMaxHealth()
-            ? uint16(std::min<uint32>(100, player->GetHealth() * 100 / player->GetMaxHealth()))
-            : 100;
-
-        uint16 powerPct = player->GetMaxPower(player->getPowerType())
-            ? uint16(std::min<uint32>(100, player->GetPower(player->getPowerType()) * 100 / player->GetMaxPower(player->getPowerType())))
-            : 100;
-
-        group->SetClusterMemberState(
-            player->GetGUID(),
-            true,
-            player->GetLevel(),
-            player->getClass(),
-            player->GetZoneId(),
-            player->GetMapId(),
-            healthPct,
-            powerPct
-        );
-    }
+        group->RefreshClusterMemberStateFromPlayer(player, true);
 
     CharacterDatabaseTransaction trans = CharacterDatabase.BeginTransaction();
 

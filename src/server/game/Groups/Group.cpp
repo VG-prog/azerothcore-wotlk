@@ -627,12 +627,22 @@ void Group::AddMemberWithGuid(ObjectGuid guid, bool sendUpdate)
     else if (CharacterCacheEntry const* cache = sCharacterCache->GetCharacterCacheByGuid(guid))
     {
         member.name = cache->Name;
+        member.clusterStateKnown = true;
+        member.clusterOnline = true;
+        member.clusterHasLiveState = true;
         member.clusterLevel = cache->Level;
         member.clusterClass = cache->Class;
+        member.clusterHealthPct = 100;
+        member.clusterPowerPct = 100;
     }
     else
     {
         member.name = guid.ToString();
+        member.clusterStateKnown = true;
+        member.clusterOnline = true;
+        member.clusterHasLiveState = true;
+        member.clusterHealthPct = 100;
+        member.clusterPowerPct = 100;
     }
 
     m_memberSlots.push_back(member);
@@ -2943,6 +2953,69 @@ void Group::SetClusterMemberFlags(ObjectGuid memberGuid, uint8 flags, uint8 role
     }
 }
 
+void Group::RefreshClusterMemberStateFromPlayer(Player* player, bool online)
+{
+    if (!player)
+        return;
+
+    ObjectGuid playerGuid = player->GetGUID();
+
+    for (MemberSlot& member : m_memberSlots)
+    {
+        if (member.guid != playerGuid)
+            continue;
+
+        bool const effectiveOnline = online || IsPlayerEffectivelyOnline(player);
+
+        member.clusterStateKnown = true;
+        member.clusterOnline = effectiveOnline;
+        member.clusterHasLiveState = effectiveOnline;
+
+        member.name = player->GetName();
+        member.clusterLevel = player->GetLevel();
+        member.clusterClass = player->getClass();
+        member.clusterZoneId = player->GetZoneId();
+        member.clusterMapId = player->GetMapId();
+
+        member.clusterHealthPct = player->GetMaxHealth()
+            ? uint16(std::min<uint32>(100, player->GetHealth() * 100 / player->GetMaxHealth()))
+            : 100;
+
+        member.clusterPowerPct = player->GetMaxPower(player->getPowerType())
+            ? uint16(std::min<uint32>(100, player->GetPower(player->getPowerType()) * 100 / player->GetMaxPower(player->getPowerType())))
+            : 100;
+
+        if (effectiveOnline)
+        {
+            if (player->GetGroup() != this && player->GetOriginalGroup() != this)
+            {
+                if (player->GetGroup())
+                {
+                    if (isBGGroup() || isBFGroup())
+                        player->SetBattlegroundOrBattlefieldRaid(this, member.group);
+                    else
+                        player->SetOriginalGroup(this, member.group);
+                }
+                else
+                    player->SetGroup(this, member.group);
+            }
+
+            if (IsLeader(playerGuid))
+                player->SetPlayerFlag(PLAYER_FLAGS_GROUP_LEADER);
+
+            player->SetGroupUpdateFlag(GROUP_UPDATE_FULL);
+            UpdatePlayerOutOfRange(player);
+        }
+
+        if (member.clusterLevel)
+            sCharacterCache->UpdateCharacterLevel(playerGuid, member.clusterLevel);
+
+        SendUpdateLocal();
+        SendClusterMemberStats(member);
+        return;
+    }
+}
+
 void Group::SetClusterMemberState(ObjectGuid memberGuid, bool online, uint8 level, uint8 playerClass, uint32 zoneId, uint32 mapId, uint16 healthPct, uint16 powerPct)
 {
     for (MemberSlot& member : m_memberSlots)
@@ -2997,20 +3070,8 @@ void Group::SetClusterMemberState(ObjectGuid memberGuid, bool online, uint8 leve
 
         if (Player* player = ObjectAccessor::FindConnectedPlayer(memberGuid))
         {
-            member.clusterOnline = true;
-            member.clusterHasLiveState = true;
-            member.clusterLevel = player->GetLevel();
-            member.clusterClass = player->getClass();
-            member.clusterZoneId = player->GetZoneId();
-            member.clusterMapId = player->GetMapId();
-
-            member.clusterHealthPct = player->GetMaxHealth()
-                ? uint16(std::min<uint32>(100, player->GetHealth() * 100 / player->GetMaxHealth()))
-                : 100;
-
-            member.clusterPowerPct = player->GetMaxPower(player->getPowerType())
-                ? uint16(std::min<uint32>(100, player->GetPower(player->getPowerType()) * 100 / player->GetMaxPower(player->getPowerType())))
-                : 100;
+            RefreshClusterMemberStateFromPlayer(player, online || hasLivePayload);
+            return;
         }
 
         if (member.clusterLevel)

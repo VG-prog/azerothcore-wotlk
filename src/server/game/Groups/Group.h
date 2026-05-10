@@ -350,6 +350,7 @@ public:
     void SetClusterMemberSubGroup(ObjectGuid memberGuid, uint8 subGroup);
     void SetClusterMemberFlags(ObjectGuid memberGuid, uint8 flags, uint8 roles);
     void SetClusterMemberState(ObjectGuid memberGuid, bool online, uint8 level, uint8 playerClass, uint32 zoneId, uint32 mapId, uint16 healthPct, uint16 powerPct);
+    void RefreshClusterMemberStateFromPlayer(Player* player, bool online = true);
     void ClusterRemoveMember(ObjectGuid memberGuid, ObjectGuid newLeaderGuid);
 
     DataMap CustomData;
