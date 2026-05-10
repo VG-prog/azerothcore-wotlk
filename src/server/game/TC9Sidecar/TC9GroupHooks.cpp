@@ -167,7 +167,14 @@ void ToCloud9GroupHooks::OnGroupMemberSubGroupChanged(GroupMemberSubGroupChanged
     if (!group)
         return;
 
-    group->SetClusterMemberSubGroup(TC9PlayerGuid(request->memberGuid), request->subGroup);
+    ObjectGuid memberGuid = TC9PlayerGuid(request->memberGuid);
+    if (!memberGuid)
+        return;
+
+    if (!group->IsMember(memberGuid))
+        group->AddMemberWithGuid(memberGuid, false);
+
+    group->SetClusterMemberSubGroup(memberGuid, request->subGroup);
 }
 
 void ToCloud9GroupHooks::OnGroupMemberFlagsChanged(GroupMemberFlagsChanged* request)
@@ -179,7 +186,14 @@ void ToCloud9GroupHooks::OnGroupMemberFlagsChanged(GroupMemberFlagsChanged* requ
     if (!group)
         return;
 
-    group->SetClusterMemberFlags(TC9PlayerGuid(request->memberGuid), request->flags, request->roles);
+    ObjectGuid memberGuid = TC9PlayerGuid(request->memberGuid);
+    if (!memberGuid)
+        return;
+
+    if (!group->IsMember(memberGuid))
+        group->AddMemberWithGuid(memberGuid, false);
+
+    group->SetClusterMemberFlags(memberGuid, request->flags, request->roles);
 }
 
 void ToCloud9GroupHooks::OnGroupMemberStateChanged(GroupMemberStateChanged* request)
@@ -191,8 +205,15 @@ void ToCloud9GroupHooks::OnGroupMemberStateChanged(GroupMemberStateChanged* requ
     if (!group)
         return;
 
+    ObjectGuid memberGuid = TC9PlayerGuid(request->memberGuid);
+    if (!memberGuid)
+        return;
+
+    if (!group->IsMember(memberGuid))
+        group->AddMemberWithGuid(memberGuid, false);
+
     group->SetClusterMemberState(
-        TC9PlayerGuid(request->memberGuid),
+        memberGuid,
         request->online != 0,
         request->level,
         request->playerClass,

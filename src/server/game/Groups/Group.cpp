@@ -585,6 +585,9 @@ bool Group::AddMember(Player* player)
 
 void Group::AddMemberWithGuid(ObjectGuid guid, bool sendUpdate)
 {
+    if (!guid || !guid.IsPlayer())
+        return;
+
     if (IsMember(guid))
         return;
 
@@ -2794,6 +2797,9 @@ void Group::DoForAllMembers(std::function<void(Player*)> const& worker)
 void Group::SendClusterMemberStats(MemberSlot const& member)
 {
     if (!member.clusterStateKnown)
+        return;
+
+    if (!member.clusterLevel || !member.clusterClass)
         return;
 
     Player* localPlayer = ObjectAccessor::FindConnectedPlayer(member.guid);

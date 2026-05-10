@@ -17,6 +17,8 @@
 
 #include "TC9GuildHooks.h"
 #include "ObjectAccessor.h"
+#include "GuildMgr.h"
+#include "CharacterCache.h"
 #include "Player.h"
 
 void ToCloud9GuildHooks::OnGuildMemberAdded(uint64 guild, uint64 character)
@@ -29,6 +31,12 @@ void ToCloud9GuildHooks::OnGuildMemberAdded(uint64 guild, uint64 character)
         return;
 
     player->SetInGuild(guild);
+
+    if (Guild* guildObject = sGuildMgr->GetGuildById(guild))
+    {
+        if (Guild::Member const* member = guildObject->GetMember(guid))
+            player->SetRank(member->GetRankId());
+    }
 }
 
 void ToCloud9GuildHooks::OnGuildMemberRemoved(uint64 /*guild*/, uint64 character)

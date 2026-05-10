@@ -880,19 +880,24 @@ void WorldSession::HandlePlayerLoginFromDB(LoginQueryHolder const& holder)
     {
         if (uint32 guildId = sCharacterCache->GetCharacterGuildIdByGuid(pCurrChar->GetGUID()))
         {
-            Guild* guild = sGuildMgr->GetGuildById(guildId);
-            Guild::Member const* member = guild ? guild->GetMember(pCurrChar->GetGUID()) : nullptr;
-            if (member)
+            pCurrChar->SetInGuild(guildId);
+
+            if (Guild* guild = sGuildMgr->GetGuildById(guildId))
             {
-                pCurrChar->SetInGuild(guildId);
-                pCurrChar->SetRank(member->GetRankId());
-                guild->SendLoginInfo(this);
+                if (Guild::Member const* member = guild->GetMember(pCurrChar->GetGUID()))
+                {
+                    pCurrChar->SetRank(member->GetRankId());
+
+                    if (!sToCloud9Sidecar->ClusterModeEnabled())
+                        guild->SendLoginInfo(this);
+                }
+                else
+                {
+                    pCurrChar->SetRank(0);
+                }
             }
             else
             {
-                LOG_ERROR("network.opcode", "Player {} ({}) marked as member of not existing guild (id: {}), removing guild membership for player.",
-                    pCurrChar->GetName(), pCurrChar->GetGUID().ToString(), guildId);
-                pCurrChar->SetInGuild(0);
                 pCurrChar->SetRank(0);
             }
         }

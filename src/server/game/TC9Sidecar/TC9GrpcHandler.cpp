@@ -23,9 +23,32 @@
 #include "ObjectAccessor.h"
 #include "Player.h"
 
+namespace
+{
+    ObjectGuid TC9PlayerGuid(uint64 value)
+    {
+        return value ? ObjectGuid::CreatePlayerFromDBValue(value) : ObjectGuid::Empty;
+    }
+
+    ObjectGuid TC9ItemGuid(uint64 value)
+    {
+        return ObjectGuid(value);
+    }
+
+    void AddRealmContextIfNeeded(CharacterDatabaseTransaction trans, ObjectGuid playerGuid)
+    {
+        if (!sToCloud9Sidecar->IsCrossrealm())
+            return;
+
+        CharacterDatabasePreparedStatement* stmt = CharacterDatabase.GetPreparedStatement(CHAR_NO_OP_PROVIDE_REALM_CONTEXT);
+        stmt->SetData(0, playerGuid.GetRealmID());
+        trans->Append(stmt);
+    }
+}
+
 GetPlayerItemsByGuidsResponse ToCloud9GrpcHandler::GetPlayerItemsByGuids(uint64 playerGuid, uint64* items, int itemsLen)
 {
-    ObjectGuid playerObjectGuid = ObjectGuid::CreatePlayerFromDBValue(playerGuid);
+    ObjectGuid playerObjectGuid = TC9PlayerGuid(playerGuid);
     Player* player = ObjectAccessor::FindPlayer(playerObjectGuid);
     if (!player)
     {
@@ -84,7 +107,7 @@ GetPlayerItemsByGuidsResponse ToCloud9GrpcHandler::GetPlayerItemsByGuids(uint64 
 
 RemoveItemsWithGuidsFromPlayerResponse ToCloud9GrpcHandler::RemoveItemsWithGuidsFromPlayer(uint64 playerGuid, uint64* items, int itemsLen, uint64 assignToPlayerGuid)
 {
-    ObjectGuid playerObjectGuid = ObjectGuid::CreatePlayerFromDBValue(playerGuid);
+    ObjectGuid playerObjectGuid = TC9PlayerGuid(playerGuid);
     Player* player = ObjectAccessor::FindPlayer(playerObjectGuid);
     if (!player)
     {
@@ -98,7 +121,7 @@ RemoveItemsWithGuidsFromPlayerResponse ToCloud9GrpcHandler::RemoveItemsWithGuids
     if (sToCloud9Sidecar->IsCrossrealm())
     {
         CharacterDatabasePreparedStatement* stmt = CharacterDatabase.GetPreparedStatement(CHAR_NO_OP_PROVIDE_REALM_CONTEXT);
-        stmt->SetData(0, ObjectGuid(playerGuid).GetRealmID());
+        stmt->SetData(0, playerObjectGuid.GetRealmID());
         trans->Append(stmt);
     }
 
@@ -120,7 +143,7 @@ RemoveItemsWithGuidsFromPlayerResponse ToCloud9GrpcHandler::RemoveItemsWithGuids
         player->MoveItemFromInventory(item->GetBagSlot(), item->GetSlot(), true);
 
         item->DeleteFromInventoryDB(trans);
-        item->SetOwnerGUID(ObjectGuid(assignToPlayerGuid));
+        item->SetOwnerGUID(TC9PlayerGuid(assignToPlayerGuid));
         item->SetState(ITEM_CHANGED);
         item->SaveToDB(trans);
 
@@ -154,7 +177,7 @@ RemoveItemsWithGuidsFromPlayerResponse ToCloud9GrpcHandler::RemoveItemsWithGuids
 
 PlayerItemErrorCode ToCloud9GrpcHandler::AddExistingItemToPlayer(AddExistingItemToPlayerRequest* request)
 {
-    Player *player = ObjectAccessor::FindPlayer(ObjectGuid(request->playerGuid));
+    Player* player = ObjectAccessor::FindPlayer(TC9PlayerGuid(request->playerGuid));
     if (!player)
         return PlayerItemErrorCodePlayerNotFound;
 
@@ -203,7 +226,7 @@ PlayerItemErrorCode ToCloud9GrpcHandler::AddExistingItemToPlayer(AddExistingItem
 
 GetMoneyForPlayerResponse ToCloud9GrpcHandler::GetMoneyForPlayer(uint64 playerGuid)
 {
-    ObjectGuid playerObjectGuid = ObjectGuid::CreatePlayerFromDBValue(playerGuid);
+    ObjectGuid playerObjectGuid = TC9PlayerGuid(playerGuid);
     Player* player = ObjectAccessor::FindPlayer(playerObjectGuid);
     if (!player)
     {
@@ -220,8 +243,7 @@ GetMoneyForPlayerResponse ToCloud9GrpcHandler::GetMoneyForPlayer(uint64 playerGu
 
 ModifyMoneyForPlayerResponse ToCloud9GrpcHandler::ModifyMoneyForPlayer(uint64 playerGuid, int32 value)
 {
-    ObjectGuid playerObjectGuid = ObjectGuid::CreatePlayerFromDBValue(playerGuid);
-    Player* player = ObjectAccessor::FindPlayer(playerObjectGuid);
+    Player* player = ObjectAccessor::FindPlayer(TC9PlayerGuid(playerGuid));
     if (!player)
     {
         ModifyMoneyForPlayerResponse resp{};
@@ -237,6 +259,11 @@ ModifyMoneyForPlayerResponse ToCloud9GrpcHandler::ModifyMoneyForPlayer(uint64 pl
         return resp;
     }
 
+    CharacterDatabaseTransaction trans = CharacterDatabase.BeginTransaction();
+    AddRealmContextIfNeeded(trans, player->GetGUID());
+    player->SaveGoldToDB(trans);
+    CharacterDatabase.CommitTransaction(trans);
+
     ModifyMoneyForPlayerResponse resp{};
     resp.errorCode = PlayerMoneyErrorCodeNoError;
     resp.newMoneyValue = player->GetMoney();
@@ -245,7 +272,7 @@ ModifyMoneyForPlayerResponse ToCloud9GrpcHandler::ModifyMoneyForPlayer(uint64 pl
 
 CanPlayerInteractWithGOAndTypeResponse ToCloud9GrpcHandler::CanPlayerInteractWithGOAndType(uint64 playerGuid, uint64 go, uint8 goType)
 {
-    ObjectGuid playerObjectGuid = ObjectGuid::CreatePlayerFromDBValue(playerGuid);
+    ObjectGuid playerObjectGuid = TC9PlayerGuid(playerGuid);
     Player* player = ObjectAccessor::FindPlayer(playerObjectGuid);
     if (!player)
     {
@@ -262,7 +289,7 @@ CanPlayerInteractWithGOAndTypeResponse ToCloud9GrpcHandler::CanPlayerInteractWit
 
 CanPlayerInteractWithNPCAndFlagsResponse ToCloud9GrpcHandler::CanPlayerInteractWithNPCAndFlags(uint64 playerGuid, uint64 npc, uint32 unitFlags)
 {
-    ObjectGuid playerObjectGuid = ObjectGuid::CreatePlayerFromDBValue(playerGuid);
+    ObjectGuid playerObjectGuid = TC9PlayerGuid(playerGuid);
     Player* player = ObjectAccessor::FindPlayer(playerObjectGuid);
     if (!player)
     {
@@ -314,40 +341,49 @@ BattlegroundStartResponse ToCloud9GrpcHandler::StartBattleground(BattlegroundSta
 
 BattlegroundErrorCode ToCloud9GrpcHandler::AddPlayersToBattleground(BattlegroundAddPlayersRequest* request)
 {
+    if (!request)
+        return BattlegroundErrorBattlegroundNotFound;
+
     BattlegroundTypeId bgTypeId = BattlegroundTypeId(request->battlegroundTypeID);
 
     Battleground* bg = sBattlegroundMgr->GetBattleground(request->instanceID, BATTLEGROUND_TYPE_NONE);
     if (!bg)
         return BattlegroundErrorBattlegroundNotFound;
 
-    for (int i = 0; i < request->alliancePlayersToAddSize; i++)
+    auto addPlayer = [&](uint64 rawGuid, bool randomBg)
     {
-        Player *player = ObjectAccessor::FindPlayer(ObjectGuid(request->alliancePlayersToAdd[i]));
-        if (player)
-        {
-            player->SetEntryPoint();
-            player->SetBattlegroundId(bg->GetInstanceID(), bg->GetBgTypeID(), 1, true, bgTypeId == BATTLEGROUND_RB, player->GetTeamId(true));
-            sBattlegroundMgr->SendToBattleground(player, bg->GetInstanceID(), bgTypeId);
-        }
-    }
+        Player* player = ObjectAccessor::FindPlayer(TC9PlayerGuid(rawGuid));
+        if (!player)
+            return;
 
-    for (int i = 0; i < request->hordePlayersToAddSize; i++)
-    {
-        Player *player = ObjectAccessor::FindPlayer(ObjectGuid(request->hordePlayersToAdd[i]));
-        if (player)
-        {
-            player->SetEntryPoint();
-            player->SetBattlegroundId(bg->GetInstanceID(), bg->GetBgTypeID(), 1, true, bgTypeId == BATTLEGROUND_RB, player->GetTeamId(true));
-            sBattlegroundMgr->SendToBattleground(player, bg->GetInstanceID(), bgTypeId);
-        }
-    }
+        player->SetEntryPoint();
+        player->SetBattlegroundId(
+            bg->GetInstanceID(),
+            bg->GetBgTypeID(),
+            1,
+            true,
+            randomBg,
+            player->GetTeamId(true)
+        );
+
+        sBattlegroundMgr->SendToBattleground(player, bg->GetInstanceID(), bgTypeId);
+    };
+
+    for (int i = 0; i < request->alliancePlayersToAddSize; ++i)
+        addPlayer(request->alliancePlayersToAdd[i], false);
+
+    for (int i = 0; i < request->hordePlayersToAddSize; ++i)
+        addPlayer(request->hordePlayersToAdd[i], false);
+
+    for (int i = 0; i < request->randomBGPlayersSize; ++i)
+        addPlayer(request->randomBGPlayers[i], true);
 
     return BattlegroundErrorCodeNoError;
 }
 
 BattlegroundJoinCheckErrorCode ToCloud9GrpcHandler::CanPlayerJoinBattlegroundQueue(uint64 playerGuid)
 {
-    ObjectGuid playerObjectGuid = ObjectGuid::CreatePlayerFromDBValue(playerGuid);
+    ObjectGuid playerObjectGuid = TC9PlayerGuid(playerGuid);
     Player* player = ObjectAccessor::FindPlayer(playerObjectGuid);
     if (!player)
         return BattlegroundJoinCheckErrorCodePlayerNotFound;
@@ -365,7 +401,7 @@ BattlegroundJoinCheckErrorCode ToCloud9GrpcHandler::CanPlayerJoinBattlegroundQue
 
 BattlegroundJoinCheckErrorCode ToCloud9GrpcHandler::CanPlayerTeleportToBattleground(uint64 playerGuid)
 {
-    ObjectGuid playerObjectGuid = ObjectGuid::CreatePlayerFromDBValue(playerGuid);
+    ObjectGuid playerObjectGuid = TC9PlayerGuid(playerGuid);
     Player* player = ObjectAccessor::FindPlayer(playerObjectGuid);
     if (!player)
         return BattlegroundJoinCheckErrorCodePlayerNotFound;
