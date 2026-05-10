@@ -3129,10 +3129,7 @@ void Group::ClusterRemoveMember(ObjectGuid memberGuid, ObjectGuid newLeaderGuid)
     if (!isBGGroup() && !isBFGroup())
     {
         sCharacterCache->ClearCharacterGroup(memberGuid);
-
-        // Only the node that owns the connected player should touch his instance state.
-        if (player)
-            Player::ResetInstances(memberGuid, INSTANCE_RESET_GROUP_LEAVE, false, player);
+        Player::ResetInstances(memberGuid, INSTANCE_RESET_GROUP_LEAVE, false);
     }
 
     if (m_leaderGuid == memberGuid)

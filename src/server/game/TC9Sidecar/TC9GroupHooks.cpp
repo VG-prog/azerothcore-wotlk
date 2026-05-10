@@ -240,7 +240,7 @@ void ToCloud9GroupHooks::OnGroupInstanceResetRequest(GroupInstanceResetRequest* 
 
             if (request->mapId == 0)
             {
-                Player::ResetInstances(playerGuid, INSTANCE_RESET_ALL, false, player);
+                Player::ResetInstances(playerGuid, INSTANCE_RESET_ALL, false);
                 player->SendRaidInfo();
                 return;
             }
