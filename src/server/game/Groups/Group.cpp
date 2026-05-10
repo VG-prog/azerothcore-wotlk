@@ -59,6 +59,20 @@ namespace
         }
     }
 
+    bool HasLiveClusterPayload(uint32 zoneId, uint32 mapId, uint16 healthPct, uint16 powerPct)
+    {
+        return zoneId != 0 || mapId != 0 || healthPct != 0 || powerPct != 0;
+    }
+
+    bool IsPlayerEffectivelyOnline(Player* player)
+    {
+        if (!player || !player->GetSession())
+            return false;
+
+        WorldSession* session = player->GetSession();
+        return !session->PlayerLogout() || session->IsRedirectingToAnotherNode();
+    }
+
     uint16 ClampPct(uint16 value)
     {
         return value > 100 ? 100 : value;
@@ -602,6 +616,7 @@ void Group::AddMemberWithGuid(ObjectGuid guid, bool sendUpdate)
         member.name = player->GetName();
         member.clusterStateKnown = true;
         member.clusterOnline = true;
+        member.clusterHasLiveState = true;
         member.clusterLevel = player->GetLevel();
         member.clusterClass = player->getClass();
         member.clusterZoneId = player->GetZoneId();
@@ -1878,7 +1893,7 @@ void Group::SendUpdateToPlayer(ObjectGuid playerGUID, MemberSlot* slot)
 
         uint8 onlineState = MEMBER_STATUS_OFFLINE;
 
-        if (member && !member->GetSession()->PlayerLogout())
+        if (IsPlayerEffectivelyOnline(member))
         {
             onlineState = MEMBER_STATUS_ONLINE;
 
@@ -1897,7 +1912,7 @@ void Group::SendUpdateToPlayer(ObjectGuid playerGUID, MemberSlot* slot)
             if (member->isDND())
                 onlineState |= MEMBER_STATUS_DND;
         }
-        else if (citr->clusterStateKnown && citr->clusterOnline)
+        else if (citr->clusterStateKnown && (citr->clusterOnline || citr->clusterHasLiveState))
         {
             onlineState = MEMBER_STATUS_ONLINE;
         }
@@ -2781,7 +2796,7 @@ void Group::SendClusterMemberStats(MemberSlot const& member)
     uint16 powerPct = ClampPct(member.clusterPowerPct);
     uint8 powerType = GetClusterDefaultPowerTypeForClass(playerClass);
 
-    if (localPlayer && !localPlayer->GetSession()->PlayerLogout())
+    if (IsPlayerEffectivelyOnline(localPlayer))
     {
         status = MEMBER_STATUS_ONLINE;
         level = localPlayer->GetLevel();
@@ -2812,7 +2827,7 @@ void Group::SendClusterMemberStats(MemberSlot const& member)
         if (localPlayer->isDND())
             status |= MEMBER_STATUS_DND;
     }
-    else if (member.clusterOnline)
+    else if (member.clusterOnline || member.clusterHasLiveState)
         status = MEMBER_STATUS_ONLINE;
 
     if (isBGGroup() || isBFGroup())
@@ -2935,6 +2950,8 @@ void Group::SetClusterMemberState(ObjectGuid memberGuid, bool online, uint8 leve
         if (member.guid != memberGuid)
             continue;
 
+        bool const hasLivePayload = HasLiveClusterPayload(zoneId, mapId, healthPct, powerPct);
+
         uint8 newLevel = level ? level : member.clusterLevel;
         uint8 newClass = playerClass ? playerClass : member.clusterClass;
         uint16 oldHealthPct = member.clusterHealthPct ? member.clusterHealthPct : 100;
@@ -2953,7 +2970,8 @@ void Group::SetClusterMemberState(ObjectGuid memberGuid, bool online, uint8 leve
         }
 
         member.clusterStateKnown = true;
-        member.clusterOnline = online;
+        member.clusterOnline = online || hasLivePayload;
+        member.clusterHasLiveState = online || hasLivePayload;
         member.clusterLevel = newLevel;
         member.clusterClass = newClass;
         member.clusterZoneId = zoneId;
@@ -2962,8 +2980,7 @@ void Group::SetClusterMemberState(ObjectGuid memberGuid, bool online, uint8 leve
         member.clusterHealthPct = ClampPct(healthPct);
         member.clusterPowerPct = ClampPct(powerPct);
 
-        // Unknown/zero payload from cluster must not make an online member appear dead.
-        if (online && !level && !playerClass)
+        if ((online || hasLivePayload) && !level && !playerClass)
         {
             if (member.clusterHealthPct == 0)
                 member.clusterHealthPct = oldHealthPct;
@@ -2972,9 +2989,16 @@ void Group::SetClusterMemberState(ObjectGuid memberGuid, bool online, uint8 leve
                 member.clusterPowerPct = oldPowerPct;
         }
 
+        if (!online && !hasLivePayload)
+        {
+            member.clusterOnline = false;
+            member.clusterHasLiveState = false;
+        }
+
         if (Player* player = ObjectAccessor::FindConnectedPlayer(memberGuid))
         {
             member.clusterOnline = true;
+            member.clusterHasLiveState = true;
             member.clusterLevel = player->GetLevel();
             member.clusterClass = player->getClass();
             member.clusterZoneId = player->GetZoneId();

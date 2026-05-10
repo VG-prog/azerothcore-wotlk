@@ -655,6 +655,8 @@ public:                                                 // opcodes handlers
 
     void HandleTC9PrepareForRedirect(WorldPacket& recvData);
 
+    bool IsRedirectingToAnotherNode() const { return m_redirectingToAnotherNode; }
+
     // played time
     void HandlePlayedTime(WorldPackets::Character::PlayedTimeClient& packet);
 

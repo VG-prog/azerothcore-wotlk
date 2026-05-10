@@ -182,6 +182,7 @@ public:
         // Local online players still use the real Player object.
         bool        clusterStateKnown = false;
         bool        clusterOnline = false;
+        bool        clusterHasLiveState = false;
         uint8       clusterLevel = 0;
         uint8       clusterClass = 0;
         uint32      clusterZoneId = 0;
