@@ -12334,12 +12334,19 @@ void Unit::SetLevel(uint8 lvl, bool showLevelChange)
 
     if (IsPlayer())
     {
+        Player* player = ToPlayer();
+
         sCharacterCache->UpdateCharacterLevel(GetGUID(), lvl);
+
+        if (sToCloud9Sidecar->ClusterModeEnabled())
+            sToCloud9Sidecar->UpdateGroupMemberState(player, true);
     }
 }
 
 void Unit::SetHealth(uint32 val)
 {
+    uint32 oldHealth = GetHealth();
+
     if (getDeathState() == DeathState::JustDied)
         val = 0;
     else if (IsPlayer() && getDeathState() == DeathState::Dead)
@@ -12370,6 +12377,17 @@ void Unit::SetHealth(uint32 val)
 
         if (player->GetGroup())
             player->SetGroupUpdateFlag(GROUP_UPDATE_FLAG_CUR_HP);
+
+        if (sToCloud9Sidecar->ClusterModeEnabled() && (player->GetGroup() || player->GetOriginalGroup()))
+        {
+            uint32 maxHealth = GetMaxHealth();
+
+            uint16 oldPct = maxHealth ? uint16(std::min<uint32>(100, oldHealth * 100 / maxHealth)) : 100;
+            uint16 newPct = maxHealth ? uint16(std::min<uint32>(100, GetHealth() * 100 / maxHealth)) : 100;
+
+            if (oldPct != newPct)
+                sToCloud9Sidecar->UpdateGroupMemberState(player, true);
+        }
     }
     else if (Pet* pet = ToCreature()->ToPet())
     {
@@ -12428,7 +12446,9 @@ void Unit::SetMaxHealth(uint32 val)
 
 void Unit::SetPower(Powers power, uint32 val, bool withPowerUpdate /*= true*/, bool fromRegenerate /* = false */)
 {
-    if (!fromRegenerate && GetPower(power) == val)
+    uint32 oldPower = GetPower(power);
+
+    if (!fromRegenerate && oldPower == val)
         return;
 
     uint32 maxPower = GetMaxPower(power);
@@ -12461,6 +12481,15 @@ void Unit::SetPower(Powers power, uint32 val, bool withPowerUpdate /*= true*/, b
 
         if (player->GetGroup())
             player->SetGroupUpdateFlag(GROUP_UPDATE_FLAG_CUR_POWER);
+
+        if (sToCloud9Sidecar->ClusterModeEnabled() && (player->GetGroup() || player->GetOriginalGroup()) && player->getPowerType() == power)
+        {
+            uint16 oldPct = maxPower ? uint16(std::min<uint32>(100, oldPower * 100 / maxPower)) : 100;
+            uint16 newPct = maxPower ? uint16(std::min<uint32>(100, val * 100 / maxPower)) : 100;
+
+            if (oldPct != newPct)
+                sToCloud9Sidecar->UpdateGroupMemberState(player, true);
+        }
     }
     else if (Pet* pet = ToCreature()->ToPet())
     {

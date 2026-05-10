@@ -1280,6 +1280,14 @@ void Player::UpdateZone(uint32 newZone, uint32 newArea, bool force)
     // zone changed, so area changed as well, update it
     UpdateArea(newArea);
 
+    if (sToCloud9Sidecar->ClusterModeEnabled())
+    {
+        if (Group* group = GetGroup())
+            group->RefreshClusterMemberStateFromPlayer(this, true);
+
+        sToCloud9Sidecar->UpdateGroupMemberState(this, true);
+    }
+
     AreaTableEntry const* zone = sAreaTableStore.LookupEntry(newZone);
     if (!zone)
         return;

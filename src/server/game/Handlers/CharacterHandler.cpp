@@ -692,17 +692,6 @@ void WorldSession::HandlePlayerLoginOpcode(WorldPacket& recvData)
     ObjectGuid playerGuid;
     recvData >> playerGuid;
 
-    if (PlayerLoading() || GetPlayer() != nullptr)
-        return;
-
-    if (!sWorld->getBoolConfig(CONFIG_REALM_LOGIN_ENABLED))
-    {
-        WorldPacket data(SMSG_CHARACTER_LOGIN_FAILED, 1);
-        data << uint8(LoginFailureReason::NoWorld);
-        SendPacket(&data);
-        return;
-    }
-
     if (!playerGuid.IsPlayer())
     {
         LOG_ERROR("network", "Account ({}) tried to login with non-player guid ({}).", GetAccountId(), playerGuid.ToString());
@@ -714,9 +703,7 @@ void WorldSession::HandlePlayerLoginOpcode(WorldPacket& recvData)
     {
         uint64 guidValue = playerGuid.GetDBValue();
 
-        QueryResult result = CharacterDatabase.Query(
-            "SELECT account FROM characters WHERE guid = {}", guidValue);
-
+        QueryResult result = CharacterDatabase.Query("SELECT account FROM characters WHERE guid = {}", guidValue);
         Field* fields = result ? result->Fetch() : nullptr;
 
         if (!fields || fields[0].Get<uint32>() != GetAccountId())

@@ -755,7 +755,7 @@ void WorldSession::LogoutPlayer(bool save, bool redirecting)
         //! Send update to group and reset stored max enchanting level
         if (_player->GetGroup())
         {
-            _player->GetGroup()->SendUpdate();
+            _player->GetGroup()->SendUpdateImmediate();
             _player->GetGroup()->ResetMaxEnchantingLevel();
 
             if (_player->GetMap()->IsDungeon() || _player->GetMap()->IsRaidOrHeroicDungeon())

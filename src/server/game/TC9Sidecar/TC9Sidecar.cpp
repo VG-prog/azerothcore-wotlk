@@ -187,7 +187,7 @@ void ToCloud9Sidecar::UpdateGroupMemberState(Player* player, bool online)
     if (!player->GetGroup() && !player->GetOriginalGroup())
         return;
 
-    uint8 powerType = player->getPowerType();
+    Powers powerType = player->getPowerType();
 
     TC9UpdateGroupMemberState(
         player->GetGUID().GetRawValue(),
@@ -197,7 +197,7 @@ void ToCloud9Sidecar::UpdateGroupMemberState(Player* player, bool online)
         player->GetZoneId(),
         player->GetMapId(),
         TC9Percent(player->GetHealth(), player->GetMaxHealth()),
-        TC9Percent(player->GetPower(Powers(powerType)), player->GetMaxPower(Powers(powerType)))
+        TC9Percent(player->GetPower(powerType), player->GetMaxPower(powerType))
     );
 }
 
