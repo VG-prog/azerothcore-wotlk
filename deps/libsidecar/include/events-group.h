@@ -55,6 +55,7 @@ typedef void (*OnGroupConvertedToRaidHook) (uint32_t guid);
 void SetOnGroupConvertedToRaidHook(OnGroupConvertedToRaidHook h);
 int CallOnGroupConvertedToRaidHook(uint32_t guid);
 
+
 typedef struct {
     uint32_t groupGuid;
     uint64_t leaderGuid;
@@ -92,8 +93,11 @@ typedef struct {
     uint8_t playerClass;
     uint32_t zoneId;
     uint32_t mapId;
-    uint16_t healthPct;
-    uint16_t powerPct;
+    uint32_t health;
+    uint32_t maxHealth;
+    uint8_t powerType;
+    uint32_t power;
+    uint32_t maxPower;
 } GroupMemberStateChanged;
 
 typedef struct {

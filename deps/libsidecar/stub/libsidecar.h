@@ -43,7 +43,13 @@ typedef struct { const char *p; ptrdiff_t n; } _GoString_;
 
 #line 1 "cgo-generated-wrapper"
 
+
+
+#line 3 "guild-api.go"
+
 #include "guild-api.h"
+
+#line 1 "cgo-generated-wrapper"
 
 #line 3 "lib.go"
 
@@ -105,8 +111,9 @@ typedef size_t GoUintptr;
 typedef float GoFloat32;
 typedef double GoFloat64;
 #ifdef _MSC_VER
-typedef struct { float real; float imag; } GoComplex64;
-typedef struct { double real; double imag; } GoComplex128;
+#include <complex.h>
+typedef _Fcomplex GoComplex64;
+typedef _Dcomplex GoComplex128;
 #else
 typedef float _Complex GoComplex64;
 typedef double _Complex GoComplex128;
@@ -182,17 +189,15 @@ extern void TC9SetOnGroupRaidDifficultyChangedHook(OnGroupRaidDifficultyChangedH
 // TC9SetOnGroupConvertedToRaidHook sets hook for group converted to raid event.
 //
 extern void TC9SetOnGroupConvertedToRaidHook(OnGroupConvertedToRaidHook h);
-
-extern void TC9UpdateGroupMemberState(
-    uint64_t memberGuid,
-    uint8_t online,
-    uint8_t level,
-    uint8_t playerClass,
-    uint32_t zoneId,
-    uint32_t mapId,
-    uint16_t healthPct,
-    uint16_t powerPct
-);
+extern void TC9SetOnGroupReadyCheckStartedHook(OnGroupReadyCheckStartedHook h);
+extern void TC9SetOnGroupReadyCheckMemberStateHook(OnGroupReadyCheckMemberStateHook h);
+extern void TC9SetOnGroupReadyCheckFinishedHook(OnGroupReadyCheckFinishedHook h);
+extern void TC9SetOnGroupMemberSubGroupChangedHook(OnGroupMemberSubGroupChangedHook h);
+extern void TC9SetOnGroupMemberFlagsChangedHook(OnGroupMemberFlagsChangedHook h);
+extern void TC9SetOnGroupMemberStateChangedHook(OnGroupMemberStateChangedHook h);
+extern void TC9SetOnGroupInstanceResetRequestHook(OnGroupInstanceResetRequestHook h);
+extern void TC9SetOnGroupInstanceBindExtensionRequestHook(OnGroupInstanceBindExtensionRequestHook h);
+extern void TC9UpdateGroupMemberState(uint64_t memberGuid, uint8_t online, uint8_t level, uint8_t playerClass, uint32_t zoneId, uint32_t mapId, uint16_t healthPct, uint16_t powerPct);
 
 // TC9SetOnGuildMemberAddedHook sets hook for guild member added event.
 //
@@ -226,8 +231,12 @@ extern GoUint64 TC9GetNextAvailableItemGuid(GoInt realmID);
 //
 extern GoUint64 TC9GetNextAvailableInstanceGuid(GoInt realmID);
 
+// TC9SetGuildCreateHandler sets handler for creating guilds.
+//
+extern void TC9SetGuildCreateHandler(GuildCreateHandler h);
+
 // TC9InitLib inits lib by starting services like grpc and healthcheck.
-// Adds game server to the servers registry that will make this server visible for game load balancer.
+// Adds game server to the servers registry that will make this server visible for gateway.
 //
 extern void TC9InitLib(GoUint16 port, GoUint32 realmID, GoUint8 isCrossRealm, char* availableMaps, uint32_t** assignedMaps, int* assignedMapsSize);
 
@@ -283,16 +292,6 @@ extern void TC9SetGetMoneyForPlayerHandler(GetMoneyForPlayerHandler h);
 // TC9SetModifyMoneyForPlayerHandler sets handler for modify money for given player request.
 //
 extern void TC9SetModifyMoneyForPlayerHandler(ModifyMoneyForPlayerHandler h);
-
-extern void TC9SetOnGroupReadyCheckStartedHook(OnGroupReadyCheckStartedHook h);
-extern void TC9SetOnGroupReadyCheckMemberStateHook(OnGroupReadyCheckMemberStateHook h);
-extern void TC9SetOnGroupReadyCheckFinishedHook(OnGroupReadyCheckFinishedHook h);
-extern void TC9SetOnGroupMemberSubGroupChangedHook(OnGroupMemberSubGroupChangedHook h);
-extern void TC9SetOnGroupMemberFlagsChangedHook(OnGroupMemberFlagsChangedHook h);
-extern void TC9SetOnGroupMemberStateChangedHook(OnGroupMemberStateChangedHook h);
-extern void TC9SetOnGroupInstanceResetRequestHook(OnGroupInstanceResetRequestHook h);
-extern void TC9SetOnGroupInstanceBindExtensionRequestHook(OnGroupInstanceBindExtensionRequestHook h);
-extern void TC9SetGuildCreateHandler(GuildCreateHandler h);
 
 #ifdef __cplusplus
 }

@@ -116,6 +116,7 @@ int CallOnGroupConvertedToRaidHook(uint32_t guid) {
     return GroupHookStatusOK;
 }
 
+
 static OnGroupReadyCheckStartedHook groupReadyCheckStartedHook;
 void SetOnGroupReadyCheckStartedHook(OnGroupReadyCheckStartedHook h) {
     groupReadyCheckStartedHook = h;
@@ -219,3 +220,4 @@ int CallOnGroupInstanceBindExtensionRequestHook(GroupInstanceBindExtensionReques
     groupInstanceBindExtensionRequestHook(request);
     return GroupHookStatusOK;
 }
+
