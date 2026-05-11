@@ -226,8 +226,11 @@ void ToCloud9Sidecar::UpdateGroupMemberState(Player* player, bool online)
         player->getClass(),
         player->GetZoneId(),
         player->GetMapId(),
-        TC9Percent(player->GetHealth(), player->GetMaxHealth()),
-        TC9Percent(player->GetPower(powerType), player->GetMaxPower(powerType))
+        uint32(player->GetHealth()),
+        uint32(player->GetMaxHealth()),
+        uint8(powerType),
+        uint32(player->GetPower(powerType)),
+        uint32(player->GetMaxPower(powerType))
     );
 }
 

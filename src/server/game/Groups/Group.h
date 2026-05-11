@@ -187,8 +187,11 @@ public:
         uint8       clusterClass = 0;
         uint32      clusterZoneId = 0;
         uint32      clusterMapId = 0;
-        uint16      clusterHealthPct = 100;
-        uint16      clusterPowerPct = 100;
+        uint32      clusterHealth = 1;
+        uint32      clusterMaxHealth = 1;
+        uint8       clusterPowerType = 0;
+        uint32      clusterPower = 0;
+        uint32      clusterMaxPower = 0;
     };
 
     typedef std::list<MemberSlot> MemberSlotList;
@@ -351,7 +354,9 @@ public:
 
     void SetClusterMemberSubGroup(ObjectGuid memberGuid, uint8 subGroup);
     void SetClusterMemberFlags(ObjectGuid memberGuid, uint8 flags, uint8 roles);
-    void SetClusterMemberState(ObjectGuid memberGuid, bool online, uint8 level, uint8 playerClass, uint32 zoneId, uint32 mapId, uint16 healthPct, uint16 powerPct);
+    void SetClusterMemberState(ObjectGuid memberGuid, bool online, uint8 level, uint8 playerClass, uint32 zoneId, uint32 mapId, uint32 health, uint32 maxHealth, uint8 powerType, uint32 power, uint32 maxPower);
+    bool SendClusterMemberStatsFullTo(Player* receiver, ObjectGuid memberGuid);
+    void BuildClusterMemberStatsPacket(MemberSlot const& member, WorldPacket& data, bool full);
     void RefreshClusterMemberStateFromPlayer(Player* player, bool online = true);
     void ClusterRemoveMember(ObjectGuid memberGuid, ObjectGuid newLeaderGuid);
 

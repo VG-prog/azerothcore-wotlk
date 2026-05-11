@@ -202,7 +202,7 @@ void ToCloud9GroupHooks::OnGroupMemberStateChanged(GroupMemberStateChanged* requ
     if (!request)
         return;
 
-    LOG_INFO("server", "TC9 group member state changed: group={}, member={}, online={}, level={}, class={}, zone={}, map={}, hp={}, power={}",
+    LOG_INFO("server", "TC9 group member state changed: group={}, member={}, online={}, level={}, class={}, zone={}, map={}, health={}, maxHealth={}, powerType={}, power={}, maxPower={}",
         request->groupGuid,
         request->memberGuid,
         uint32(request->online),
@@ -210,8 +210,11 @@ void ToCloud9GroupHooks::OnGroupMemberStateChanged(GroupMemberStateChanged* requ
         uint32(request->playerClass),
         request->zoneId,
         request->mapId,
-        request->healthPct,
-        request->powerPct);
+        request->health,
+        request->maxHealth,
+        uint32(request->powerType),
+        request->power,
+        request->maxPower);
 
     Group* group = sGroupMgr->GetGroupByGUID(request->groupGuid);
     if (!group)
@@ -231,8 +234,11 @@ void ToCloud9GroupHooks::OnGroupMemberStateChanged(GroupMemberStateChanged* requ
         request->playerClass,
         request->zoneId,
         request->mapId,
-        request->healthPct,
-        request->powerPct
+        request->health,
+        request->maxHealth,
+        request->powerType,
+        request->power,
+        request->maxPower
     );
 }
 

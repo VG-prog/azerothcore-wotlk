@@ -940,6 +940,22 @@ void WorldSession::HandleRequestPartyMemberStatsOpcode(WorldPacket& recvData)
     ObjectGuid Guid;
     recvData >> Guid;
 
+    if (sToCloud9Sidecar->ClusterModeEnabled())
+    {
+        Player* requester = GetPlayer();
+
+        if (requester && !HashMapHolder<Player>::Find(Guid))
+        {
+            if (Group* group = requester->GetGroup())
+                if (group->SendClusterMemberStatsFullTo(requester, Guid))
+                    return;
+
+            if (Group* originalGroup = requester->GetOriginalGroup())
+                if (originalGroup->SendClusterMemberStatsFullTo(requester, Guid))
+                    return;
+        }
+    }
+
     Player* player = HashMapHolder<Player>::Find(Guid);
     if (!player || !player->IsInSameRaidWith(_player))
     {
