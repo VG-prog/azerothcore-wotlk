@@ -269,10 +269,12 @@ subgroup changes, role/flag changes, instance reset/extension, and guild creatio
 
 ## Milestones
 
-### Phase 1 — Build and ABI guardrail
+### Phase 1 — Build/libsidecar ABI consistency
 
 - **Goal:** Make the current tree buildable in both default/stub mode and
-  `USE_REAL_LIBSIDECAR=ON`, without changing gameplay behavior.
+  `USE_REAL_LIBSIDECAR=ON`, and prove that the generated real header, stub
+  header, stub implementation, copied shared object, and C++ call sites agree
+  before changing gameplay behavior.
 - **Files/functions likely involved:**
   - `deps/libsidecar/include/libsidecar.h`
   - `deps/libsidecar/stub/libsidecar.h`
@@ -281,6 +283,12 @@ subgroup changes, role/flag changes, instance reset/extension, and guild creatio
   - `deps/libsidecar/stub/events-group.h`
   - `src/server/game/TC9Sidecar/TC9Sidecar.cpp::UpdateGroupMemberState`
   - `deps/libsidecar/CMakeLists.txt`
+- **Mandatory ToCloud9 verification before behavior/API changes:**
+  - Verify the ToCloud9 repo/service-contract source for generated C ABI,
+    protobuf, NATS subjects, gateway behavior, and groupserver expectations
+    before changing protobuf/NATS/gateway/groupserver behavior.
+  - Do not invent or regenerate service contracts from the AzerothCore side
+    alone.
 - **Exact expected behavior:**
   - Stub and real headers expose the same C ABI for all functions used by C++.
   - Stub functions compile and fail safely only when called with cluster mode
@@ -307,7 +315,7 @@ subgroup changes, role/flag changes, instance reset/extension, and guild creatio
   - Revert only the header/stub/CMake/libsidecar artifact changes from this
     phase. No DB or runtime state changes are introduced.
 
-### Phase 2 — GUID boundary audit and fix
+### Phase 2 — GUID boundary correctness
 
 - **Goal:** Make player/item GUID values unambiguous and prevent raw 64-bit
   ToCloud9 GUID truncation or accidental DB low-counter use at service/DB
@@ -321,6 +329,10 @@ subgroup changes, role/flag changes, instance reset/extension, and guild creatio
   - `src/server/game/TC9Sidecar/TC9GrpcHandler.cpp`
   - `src/server/game/Guilds/Guild.cpp::Create`
   - SQL prepared statement usage around player/guild/instance ownership.
+- **Mandatory ToCloud9 verification before persistence/API changes:**
+  - Verify current ToCloud9 `guidserver`, character DB migrations, groupserver,
+    guildserver, and any protobuf/NATS ID fields before changing generated GUID
+    semantics, persisted DB values, or service field meanings.
 - **Exact expected behavior:**
   - Every sidecar field name and call site documents whether it is raw object
     GUID, DB-value GUID, or low counter.
@@ -345,93 +357,25 @@ subgroup changes, role/flag changes, instance reset/extension, and guild creatio
   - If data was generated during manual testing, delete only the test characters,
     items, guilds, and related rows created during the test.
 
-### Phase 3 — Discrete group feature outbound hooks
+### Phase 3 — Cluster group member live state updates
 
-- **Goal:** Publish local gameplay-originated ready check, subgroup, assistant,
-  main tank, and main assist changes to ToCloud9 while preserving local same-node
-  behavior.
-- **Files/functions likely involved:**
-  - `src/server/game/Handlers/GroupHandler.cpp::HandleRaidReadyCheckOpcode`
-  - `src/server/game/Handlers/GroupHandler.cpp::HandleRaidReadyCheckFinishedOpcode`
-  - `src/server/game/Handlers/GroupHandler.cpp::HandleGroupChangeSubGroupOpcode`
-  - `src/server/game/Handlers/GroupHandler.cpp::HandleGroupSwapSubGroupOpcode`
-  - `src/server/game/Handlers/GroupHandler.cpp::HandleGroupAssistantLeaderOpcode`
-  - `src/server/game/Handlers/GroupHandler.cpp::HandlePartyAssignmentOpcode`
-  - `src/server/game/Groups/Group.cpp::ChangeMembersGroup`
-  - `src/server/game/Groups/Group.cpp::SetGroupMemberFlag`
-  - `src/server/game/TC9Sidecar/TC9Sidecar.*`
-  - `deps/libsidecar/include/libsidecar.h`
-  - `deps/libsidecar/stub/libsidecar.*`
-- **Exact expected behavior:**
-  - A local ready-check start publishes one ToCloud9 event and still displays to
-    local members.
-  - A local ready-check response publishes the member state and still displays to
-    eligible local leader/assistant clients.
-  - A local ready-check finish publishes one finish event and still displays
-    locally.
-  - Local subgroup changes and swaps publish the final affected member subgroup
-    values once per changed member.
-  - Assistant/main tank/main assist changes publish final flags/roles once, with
-    main tank/main assist uniqueness preserved.
-  - Non-cluster and same-worldserver behavior remains unchanged.
-- **Risks:**
-  - Echo loops if inbound ToCloud9 events call local mutators that publish again.
-  - Duplicate packets to local players if both local path and inbound echo fire.
-  - Service contract may not yet expose outbound functions matching inbound hook
-    structs.
-- **Verification steps:**
-  - `rg -n 'ReadyCheck|ChangeSubGroup|SwapSubGroup|Assistant|PartyAssignment|SetGroupMemberFlag|TC9' src/server/game/Handlers src/server/game/Groups src/server/game/TC9Sidecar deps/libsidecar`
-  - Build stub and real worldserver targets.
-  - Manual two-worldserver QA: ready-check start/answer/finish, subgroup move,
-    subgroup swap, assistant toggle, MT toggle, MA toggle.
-  - Confirm no duplicate member packets in local-only groups.
-- **Rollback strategy:**
-  - Revert outbound sidecar calls and any new sidecar function declarations for
-    this phase. Inbound hooks remain as before.
-
-### Phase 4 — Instance reset and bind-extension outbound hooks
-
-- **Goal:** Route local instance reset and saved-instance extension requests
-  through ToCloud9 when cluster mode is enabled, while retaining local behavior in
-  non-cluster mode.
-- **Files/functions likely involved:**
-  - `src/server/game/Handlers/MiscHandler.cpp::HandleResetInstancesOpcode`
-  - Dungeon/raid difficulty reset flows in `MiscHandler.cpp`
-  - `src/server/game/Handlers/CalendarHandler.cpp::HandleSetSavedInstanceExtend`
-  - `src/server/game/Groups/Group.cpp::ResetInstances`
-  - `src/server/game/Entities/Player/PlayerMisc.cpp::ResetInstances`
-  - `src/server/game/TC9Sidecar/TC9GroupHooks.cpp::OnGroupInstanceResetRequest`
-  - `src/server/game/TC9Sidecar/TC9GroupHooks.cpp::OnGroupInstanceBindExtensionRequest`
-  - `src/server/game/Instances/InstanceSaveMgr.cpp::ClusterSetPlayerBindExtension`
-- **Exact expected behavior:**
-  - In cluster mode, a leader reset request is validated locally enough to avoid
-    obvious invalid requests, then published once to ToCloud9 for group-scoped
-    routing.
-  - Inbound reset events perform local reset/unbind only for local affected
-    players and report expected client feedback.
-  - Bind-extension changes are published to ToCloud9 and applied consistently to
-    local and remote members.
-  - Non-cluster behavior remains the original direct local reset/DB update path.
-- **Risks:**
-  - Reset semantics are sensitive: applying locally before service fanout can
-    diverge from remote nodes; applying only after service fanout can delay client
-    feedback.
-  - DB realm-context assumptions must be verified before changing local writes.
-- **Verification steps:**
-  - Build stub and real worldserver targets.
-  - Manual QA with two worldservers: normal reset, difficulty-change reset,
-    saved instance extension on/off, permission failure, no group, group leader,
-    non-leader.
-  - Verify `character_instance.extended` and bind rows for crossrealm test
-    characters.
-- **Rollback strategy:**
-  - Revert outbound routing changes. Local direct reset/extension behavior should
-    return unchanged.
-
-### Phase 5 — Transitional member-state hardening
-
-- **Goal:** Make current worldserver-published member state less unsafe while the
-  gateway-driven design is prepared.
+- **Goal:** Harden the existing cluster group member live-state path for remote
+  party/raid frames while the gateway-driven architecture is designed and proven.
+  This is explicitly transitional: the target architecture remains
+  gateway-observed object-update extraction with bulk snapshot publication, but
+  this phase may make the current worldserver-side publication path consistent,
+  bounded, and testable.
+- **State fields in scope:**
+  - online/offline
+  - level
+  - class
+  - zone
+  - map
+  - health
+  - max health
+  - power type
+  - power
+  - max power
 - **Files/functions likely involved:**
   - `src/server/game/TC9Sidecar/TC9Sidecar.cpp::UpdateGroupMemberState`
   - `src/server/game/TC9Sidecar/TC9GroupHooks.cpp::OnGroupMemberStateChanged`
@@ -441,57 +385,205 @@ subgroup changes, role/flag changes, instance reset/extension, and guild creatio
   - `src/server/game/Entities/Unit/Unit.cpp::SetMaxPower`
   - `src/server/game/Entities/Player/PlayerUpdates.cpp::UpdateZone`
   - `src/server/game/Groups/Group.cpp::SetClusterMemberState`
+  - `src/server/game/Groups/Group.cpp::BuildClusterMemberStatsPacket`
+- **Mandatory ToCloud9 verification before contract changes:**
+  - Verify ToCloud9 groupserver/gateway/protobuf/NATS expectations for member
+    state before changing event schemas, generated code, NATS subjects, gateway
+    parsing, or groupserver routing.
+  - Confirm whether ToCloud9 expects raw current/max values or percentages, and
+    confirm the identity field form before changing the sidecar ABI or event
+    payload.
 - **Exact expected behavior:**
-  - Logs on member-state hot paths are debug-level or sampled.
   - The outbound member-state contract is one consistent raw-current/max contract
-    or one consistent percent contract; no stub/real divergence.
+    or one consistent percent contract; no stub/real divergence remains.
+  - Remote party/raid frames receive online/offline, level, class, zone, map,
+    health/max health, power type, and power/max power consistently.
+  - Logs on member-state hot paths are debug-level or sampled.
   - If keeping this path temporarily, updates are deduplicated/throttled enough to
-    avoid per-regeneration spam.
-  - No move to a new high-frequency polling loop is introduced.
+    avoid per-regeneration spam and no new high-frequency polling loop is added.
+  - The transitional path can later be disabled or removed once the gateway path
+    is proven.
 - **Risks:**
   - Throttling too aggressively can make remote party frames feel stale.
-  - Any worldserver-side state publication remains a temporary architecture
-    compromise.
+  - Any worldserver-side live-state publication remains an architecture
+    compromise and must not become the permanent target design.
+  - Service echo loops or GUID mismatches can produce stale or duplicate member
+    frames if Phase 2 is incomplete.
 - **Verification steps:**
   - Build stub and real worldserver targets.
-  - Manual QA: health damage/heal, power spend/regenerate, level-up, zone/map
-    transition, login/logout/redirect.
-  - Measure log volume and number of sidecar publish calls during combat/regeneration.
+  - Manual QA: login, logout, redirect, level-up, zone transition, map
+    transition, health damage/heal, max-health change, power spend/regenerate,
+    max-power change, and power-type change.
+  - Measure log volume and number of sidecar publish calls during combat and
+    regeneration.
+  - Verify same-worldserver groups still use normal local behavior.
 - **Rollback strategy:**
-  - Revert only throttling/log-level/member-state contract changes. Discrete group
-    feature phases remain independent.
+  - Revert only member-state contract/logging/throttling changes. Discrete group,
+    instance, and guild phases remain independent.
 
-### Phase 6 — Gateway-driven remote frame contract design
+### Phase 4 — Ready check
 
-- **Goal:** Define the next architecture-compatible contract for gateway-extracted
-  object-update snapshots and groupserver-routed group member patches.
+- **Goal:** Publish local gameplay-originated ready-check start, member response,
+  and finish events to ToCloud9 while preserving same-node behavior.
 - **Files/functions likely involved:**
-  - AzerothCore files only if a temporary compatibility hook must be removed or
-    feature-flagged.
-  - ToCloud9 gateway/groupserver/protobuf/NATS files once the ToCloud9 repo is
-    available.
+  - `src/server/game/Handlers/GroupHandler.cpp::HandleRaidReadyCheckOpcode`
+  - `src/server/game/Handlers/GroupHandler.cpp::HandleRaidReadyCheckFinishedOpcode`
+  - `src/server/game/TC9Sidecar/TC9Sidecar.*`
+  - `src/server/game/TC9Sidecar/TC9GroupHooks.cpp`
+  - `deps/libsidecar/include/libsidecar.h`
+  - `deps/libsidecar/stub/libsidecar.*`
+- **Mandatory ToCloud9 verification before API changes:**
+  - Verify ToCloud9 ready-check protobuf/NATS/service contracts and generated
+    sidecar functions before adding or changing outbound ready-check APIs.
 - **Exact expected behavior:**
-  - Bulk snapshots identify realm, worldserver, gateway, raw player DB/value GUID,
-    online state, level, class, zone, map, health percent or raw health contract,
-    power percent or raw power contract, and timestamp/sequence.
-  - Gateway publishes snapshots in bulk on a fixed cadence; groupserver routes
-    group-scoped patches; gateway sends client-facing packets.
-  - AzerothCore no longer publishes HP/power changes from hot worldserver setters.
+  - A local ready-check start publishes one ToCloud9 event and still displays to
+    local members.
+  - A local ready-check response publishes the member state and still displays to
+    eligible local leader/assistant clients.
+  - A local ready-check finish publishes one finish event and still displays
+    locally.
+  - Non-cluster and same-worldserver behavior remains unchanged.
 - **Risks:**
-  - Requires ToCloud9 repo/service contract verification not available in this
-    audit environment.
-  - Packet extraction must not trust client input or mutate original packets.
+  - Echo loops if inbound ToCloud9 events call local mutators that publish again.
+  - Duplicate packets to local players if both local path and inbound echo fire.
 - **Verification steps:**
-  - Inventory ToCloud9 gateway/groupserver/protobuf/NATS paths with `rg` once the
-    repo is available.
-  - Unit-test snapshot extraction and routing.
-  - Manual two-worldserver party/raid frame QA for online, level, class, zone,
-    map, health, and power.
+  - `rg -n 'ReadyCheck|TC9' src/server/game/Handlers src/server/game/Groups src/server/game/TC9Sidecar deps/libsidecar`
+  - Build stub and real worldserver targets.
+  - Manual two-worldserver QA: ready-check start, answer, timeout/finish, and no
+    duplicate local-only packets.
 - **Rollback strategy:**
-  - Keep Phase 5 transitional member-state path behind a config flag until the
-    gateway path is proven; rollback by disabling gateway snapshot publication.
+  - Revert outbound ready-check sidecar calls and any new declarations. Inbound
+    ready-check hooks remain as before.
 
-### Phase 7 — Guild creation integration verification
+### Phase 5 — Raid subgroup movement
+
+- **Goal:** Publish local subgroup changes and subgroup swaps to ToCloud9 while
+  preserving same-node behavior.
+- **Files/functions likely involved:**
+  - `src/server/game/Handlers/GroupHandler.cpp::HandleGroupChangeSubGroupOpcode`
+  - `src/server/game/Handlers/GroupHandler.cpp::HandleGroupSwapSubGroupOpcode`
+  - `src/server/game/Groups/Group.cpp::ChangeMembersGroup`
+  - `src/server/game/TC9Sidecar/TC9Sidecar.*`
+  - `src/server/game/TC9Sidecar/TC9GroupHooks.cpp`
+  - `deps/libsidecar/include/libsidecar.h`
+  - `deps/libsidecar/stub/libsidecar.*`
+- **Mandatory ToCloud9 verification before API changes:**
+  - Verify ToCloud9 subgroup movement protobuf/NATS/service contracts and
+    generated sidecar functions before adding or changing outbound subgroup APIs.
+- **Exact expected behavior:**
+  - Local subgroup changes and swaps publish final affected member subgroup values
+    once per changed member.
+  - Remote nodes update local cached slots and client frames through inbound
+    events.
+  - Non-cluster and same-worldserver behavior remains unchanged.
+- **Risks:**
+  - Echo loops if inbound subgroup events republish.
+  - Counter drift if local subgroup counts are mutated twice or applied out of
+    order.
+- **Verification steps:**
+  - Build stub and real worldserver targets.
+  - Manual two-worldserver QA: subgroup move, subgroup swap, invalid subgroup,
+    full subgroup, reconnect after movement, and no duplicate local-only packets.
+- **Rollback strategy:**
+  - Revert outbound subgroup sidecar calls and any new declarations. Inbound
+    subgroup hooks remain as before.
+
+### Phase 6 — Assistant leader / main tank / main assist flags
+
+- **Goal:** Publish local assistant leader, main tank, and main assist flag changes
+  to ToCloud9 while preserving uniqueness and same-node behavior.
+- **Files/functions likely involved:**
+  - `src/server/game/Handlers/GroupHandler.cpp::HandleGroupAssistantLeaderOpcode`
+  - `src/server/game/Handlers/GroupHandler.cpp::HandlePartyAssignmentOpcode`
+  - `src/server/game/Groups/Group.cpp::SetGroupMemberFlag`
+  - `src/server/game/Groups/Group.cpp::RemoveUniqueGroupMemberFlag`
+  - `src/server/game/TC9Sidecar/TC9Sidecar.*`
+  - `src/server/game/TC9Sidecar/TC9GroupHooks.cpp`
+  - `deps/libsidecar/include/libsidecar.h`
+  - `deps/libsidecar/stub/libsidecar.*`
+- **Mandatory ToCloud9 verification before API changes:**
+  - Verify ToCloud9 flag/role protobuf/NATS/service contracts and generated
+    sidecar functions before adding or changing outbound flag APIs.
+- **Exact expected behavior:**
+  - Assistant/main tank/main assist changes publish final flags/roles once.
+  - Main tank and main assist uniqueness is preserved across local and remote
+    group members.
+  - Non-cluster and same-worldserver behavior remains unchanged.
+- **Risks:**
+  - Echo loops if inbound flag events republish.
+  - Duplicate or out-of-order uniqueness changes can leave more than one main
+    tank/main assist in cached state.
+- **Verification steps:**
+  - Build stub and real worldserver targets.
+  - Manual two-worldserver QA: assistant toggle, MT toggle, MA toggle, uniqueness
+    replacement, demotion/removal, reconnect, and no duplicate local-only packets.
+- **Rollback strategy:**
+  - Revert outbound flag sidecar calls and any new declarations. Inbound flag
+    hooks remain as before.
+
+### Phase 7 — Clustered instance reset
+
+- **Goal:** Route local instance reset requests through ToCloud9 when cluster mode
+  is enabled, while retaining local behavior in non-cluster mode.
+- **Files/functions likely involved:**
+  - `src/server/game/Handlers/MiscHandler.cpp::HandleResetInstancesOpcode`
+  - Dungeon/raid difficulty reset flows in `MiscHandler.cpp`
+  - `src/server/game/Groups/Group.cpp::ResetInstances`
+  - `src/server/game/Entities/Player/PlayerMisc.cpp::ResetInstances`
+  - `src/server/game/TC9Sidecar/TC9GroupHooks.cpp::OnGroupInstanceResetRequest`
+- **Mandatory ToCloud9 verification before API changes:**
+  - Verify ToCloud9 instance-reset protobuf/NATS/service contracts and generated
+    sidecar functions before adding or changing outbound reset APIs.
+- **Exact expected behavior:**
+  - In cluster mode, a leader reset request is validated locally enough to avoid
+    obvious invalid requests, then published once to ToCloud9 for group-scoped
+    routing.
+  - Inbound reset events perform local reset/unbind only for local affected
+    players and report expected client feedback.
+  - Non-cluster behavior remains the original direct local reset path.
+- **Risks:**
+  - Reset semantics are sensitive: applying locally before service fanout can
+    diverge from remote nodes; applying only after service fanout can delay client
+    feedback.
+- **Verification steps:**
+  - Build stub and real worldserver targets.
+  - Manual QA with two worldservers: normal reset, difficulty-change reset,
+    permission failure, no group, group leader, and non-leader.
+- **Rollback strategy:**
+  - Revert outbound reset routing changes. Local direct reset behavior should
+    return unchanged.
+
+### Phase 8 — Clustered instance bind extension
+
+- **Goal:** Route local saved-instance bind extension requests through ToCloud9
+  when cluster mode is enabled, while retaining local behavior in non-cluster
+  mode.
+- **Files/functions likely involved:**
+  - `src/server/game/Handlers/CalendarHandler.cpp::HandleSetSavedInstanceExtend`
+  - `src/server/game/TC9Sidecar/TC9GroupHooks.cpp::OnGroupInstanceBindExtensionRequest`
+  - `src/server/game/Instances/InstanceSaveMgr.cpp::ClusterSetPlayerBindExtension`
+- **Mandatory ToCloud9 verification before API/DB changes:**
+  - Verify ToCloud9 bind-extension protobuf/NATS/service contracts, generated
+    sidecar functions, and character DB realm/GUID expectations before adding or
+    changing outbound bind-extension APIs or DB ownership fields.
+- **Exact expected behavior:**
+  - Bind-extension changes are published to ToCloud9 and applied consistently to
+    local and remote members.
+  - DB writes use the proven crossrealm GUID form from Phase 2.
+  - Non-cluster behavior remains the original direct local DB update path.
+- **Risks:**
+  - DB realm-context assumptions must be verified before changing local writes.
+  - Applying stale events can re-toggle a bind after the player changes it again.
+- **Verification steps:**
+  - Build stub and real worldserver targets.
+  - Manual QA with two worldservers: saved instance extension on/off, relog,
+    reconnect, and DB verification of `character_instance.extended` and bind rows
+    for crossrealm test characters.
+- **Rollback strategy:**
+  - Revert outbound bind-extension routing changes. Local direct extension
+    behavior should return unchanged.
+
+### Phase 9 — Guild creation verification/completion
 
 - **Goal:** Verify and, if needed, complete the existing sidecar-driven guild
   creation path without changing the normal petition workflow unexpectedly.
@@ -502,10 +594,14 @@ subgroup changes, role/flag changes, instance reset/extension, and guild creatio
   - `src/server/game/TC9Sidecar/TC9GuildHooks.cpp`
   - `deps/libsidecar/include/guild-api.h`
   - `deps/libsidecar/stub/guild-api.h`
+- **Mandatory ToCloud9 verification before API/DB changes:**
+  - Verify ToCloud9 guildserver/guild-create contracts, generated sidecar API,
+    duplicate-name rules, error-code mapping, and character DB ownership before
+    changing guild creation behavior or persistence.
 - **Exact expected behavior:**
   - ToCloud9 can request guild creation for a connected local leader and receive
     deterministic error codes for invalid name, duplicate name, missing leader,
-    and internal failure.
+    leader already in guild, and internal failure.
   - Crossrealm DB persistence stores the leader/guild fields using the schema's
     expected ID form.
   - Local guild cache, character cache, leader rank, and client state are updated.
@@ -522,29 +618,49 @@ subgroup changes, role/flag changes, instance reset/extension, and guild creatio
 - **Rollback strategy:**
   - Revert only guild API/handler changes. Existing local guild creation remains.
 
-### Phase 8 — Hardening and regression matrix
+### Phase 10 — Future architecture/design only
 
-- **Goal:** Validate the cluster behavior end-to-end and remove temporary unsafe
-  hooks once the gateway path is functional.
-- **Files/functions likely involved:**
-  - All files touched in Phases 1-7.
-  - Test scripts or docs added for repeatable QA.
-- **Exact expected behavior:**
-  - Single-worldserver grouping/guild/instance behavior remains unchanged.
-  - Cluster-disabled builds and startup work.
-  - Cluster-enabled builds and startup work with real `libsidecar`.
-  - Two-worldserver party/raid/guild/instance behavior matches the verification
-    matrix in `AGENTS.md`.
+- **Goal:** Design future cross-service systems without implementing production
+  code in this phase. This phase captures target architecture, service contracts,
+  risks, and migration plans for larger systems after Phases 1-9 are stable.
+- **Topics in scope:**
+  - Gateway-driven member-state snapshots.
+  - Guild bank.
+  - Auction house.
+  - Arenas.
+  - LFG.
+- **Gateway-driven member-state target architecture:**
+  - Gateway observes server-to-client object update packets that already pass
+    through it, extracts conservative presentational player snapshots, stores the
+    latest state locally, and bulk-publishes changes to ToCloud9 services.
+  - Groupserver routes group-scoped member-state patches, and gateway sends
+    client-facing remote group/raid frame updates to authorized local sessions.
+  - AzerothCore/worldserver should stop publishing continuous HP/power changes
+    from hot setters once this path is proven, while retaining discrete
+    gameplay-intent hooks for actions gateway cannot infer safely.
+- **Mandatory ToCloud9 verification before any future implementation:**
+  - Inventory the ToCloud9 repo with `rg` for gateway packet parsing, object
+    update decoding, protobuf definitions, generated API, NATS subjects,
+    groupserver routing, guildserver contracts, auction/arena/LFG ownership, and
+    SQL migrations before changing protobuf/NATS/gateway/groupserver behavior.
+  - Do not modify generated files unless the generator and expected committed
+    outputs are proven in the ToCloud9 repo.
+- **Deliverables:**
+  - Architecture decision records or updates to this plan.
+  - Evidence maps for each future system.
+  - Contract sketches clearly marked as proposals until verified against
+    ToCloud9 source.
 - **Risks:**
-  - Environment gaps (MySQL/Redis/NATS/ToCloud9 services) can hide integration
-    failures until manual QA.
+  - Implementing these systems before stabilizing ABI/GUID/group basics would
+    compound existing identity and service-contract uncertainty.
+  - Gateway packet extraction can accidentally trust or leak state if
+    authorization and packet decoding are not proven first.
 - **Verification steps:**
-  - Full build with default/stub and `USE_REAL_LIBSIDECAR=ON`.
-  - `ctest --output-on-failure` if unit tests are enabled.
-  - Manual QA matrix from `AGENTS.md` sections 10.1-10.5.
+  - Documentation review only in this phase.
+  - No production code changes until a future implementation phase is explicitly
+    approved.
 - **Rollback strategy:**
-  - Roll back by phase in reverse order. Each phase should be one small commit or
-    PR segment with no unrelated refactors.
+  - Revert documentation/design updates only. No runtime or DB state is changed.
 
 ## Open questions
 
@@ -571,6 +687,9 @@ subgroup changes, role/flag changes, instance reset/extension, and guild creatio
   group hooks, guild hooks, group handlers, instance handlers, GUID helpers,
   player/item creation paths, and hot member-state hooks.
 - Did not modify production code.
+- Reordered implementation milestones per user priority: build/libsidecar ABI,
+  GUID boundaries, transitional live member-state hardening, discrete group
+  features, instance features, guild creation, then future design-only work.
 
 ## Verification log
 
@@ -587,6 +706,15 @@ nm -D deps/libsidecar/libsidecar.so | rg "TC9UpdateGroupMemberState|TC9SetOnGrou
 readelf -h deps/libsidecar/libsidecar.so || true
 cmake -S . -B build-audit-real -DUSE_REAL_LIBSIDECAR=ON -DSCRIPTS=static -DMODULES=static -DBUILD_TESTING=OFF
 rm -rf build-audit-real
+sed -n '1,260p' CLUSTER_PLAN.md
+sed -n '261,520p' CLUSTER_PLAN.md
+sed -n '190,340p' CLUSTER_PLAN.md
+sed -n '340,620p' CLUSTER_PLAN.md
+python3 - <<'PY'
+# updated only the CLUSTER_PLAN.md milestones/log text
+PY
+rg -n "^### Phase|Mandatory ToCloud9|gateway-driven|transitional|worldserver-side|Did not modify production code|Reordered implementation" CLUSTER_PLAN.md
+git diff --check -- CLUSTER_PLAN.md
 ```
 
 Results:
@@ -607,7 +735,8 @@ Results:
 
 ## Rollback notes
 
-- This audit adds only `CLUSTER_PLAN.md`.
-- To roll back this audit, remove `CLUSTER_PLAN.md`.
-- The audit did not modify production code or the pre-existing modified
-  `deps/libsidecar/libsidecar.so`.
+- This audit/plan update changes only `CLUSTER_PLAN.md`.
+- To roll back this audit/plan update, revert the `CLUSTER_PLAN.md` documentation
+  change.
+- The audit and phase-order update did not modify production code or the
+  pre-existing modified `deps/libsidecar/libsidecar.so`.
