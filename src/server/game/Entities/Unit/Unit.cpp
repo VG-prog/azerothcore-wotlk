@@ -12378,7 +12378,7 @@ void Unit::SetHealth(uint32 val)
         if (player->GetGroup())
             player->SetGroupUpdateFlag(GROUP_UPDATE_FLAG_CUR_HP);
 
-        if (sToCloud9Sidecar->ClusterModeEnabled() && (player->GetGroup() || player->GetOriginalGroup()))
+        if (sToCloud9Sidecar->ClusterModeEnabled())
         {
             uint32 maxHealth = GetMaxHealth();
 
@@ -12482,7 +12482,7 @@ void Unit::SetPower(Powers power, uint32 val, bool withPowerUpdate /*= true*/, b
         if (player->GetGroup())
             player->SetGroupUpdateFlag(GROUP_UPDATE_FLAG_CUR_POWER);
 
-        if (sToCloud9Sidecar->ClusterModeEnabled() && (player->GetGroup() || player->GetOriginalGroup()) && player->getPowerType() == power)
+        if (sToCloud9Sidecar->ClusterModeEnabled() && player->getPowerType() == power)
         {
             uint16 oldPct = maxPower ? uint16(std::min<uint32>(100, oldPower * 100 / maxPower)) : 100;
             uint16 newPct = maxPower ? uint16(std::min<uint32>(100, val * 100 / maxPower)) : 100;

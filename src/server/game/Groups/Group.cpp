@@ -2878,7 +2878,7 @@ void Group::SendClusterMemberStats(MemberSlot const& member)
     if (zoneId)
         updateMask |= GROUP_UPDATE_FLAG_ZONE;
 
-    WorldPacket data(SMSG_PARTY_MEMBER_STATS_FULL, 64);
+    WorldPacket data(SMSG_PARTY_MEMBER_STATS, 64);
     data << member.guid.WriteAsPacked();
     data << uint32(updateMask);
 
