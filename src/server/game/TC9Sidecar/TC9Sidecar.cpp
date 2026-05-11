@@ -18,6 +18,7 @@
 #include "TC9Sidecar.h"
 #include "Config.h"
 #include "Group.h"
+#include "GroupMgr.h"
 #include "InstanceSaveMgr.h"
 #include "libsidecar.h"
 #include "Log.h"
@@ -187,6 +188,25 @@ void ToCloud9Sidecar::UpdateGroupMemberState(Player* player, bool online)
 
     Group* group = player->GetGroup();
     Group* originalGroup = player->GetOriginalGroup();
+
+    // When changing node, the local Player may not yet be attached to the cluster Group.
+    // Resolve the group through CharacterCache, because AddMemberWithGuid stores it there.
+    if (!group && !originalGroup)
+    {
+        ObjectGuid cachedGroupGuid = sCharacterCache->GetCharacterGroupGuidByGuid(player->GetGUID());
+        if (cachedGroupGuid)
+            group = sGroupMgr->GetGroupByGUID(cachedGroupGuid.GetCounter());
+    }
+
+    LOG_INFO("server", "TC9 sending group member state: member={}, online={}, level={}, class={}, zone={}, map={}, group={}, originalGroup={}",
+        player->GetGUID().GetRawValue(),
+        online ? 1 : 0,
+        uint32(player->GetLevel()),
+        uint32(player->getClass()),
+        player->GetZoneId(),
+        player->GetMapId(),
+        group ? group->GetGUID().GetCounter() : 0,
+        originalGroup ? originalGroup->GetGUID().GetCounter() : 0);
 
     if (!group && !originalGroup)
         return;

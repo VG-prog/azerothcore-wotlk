@@ -949,16 +949,16 @@ void WorldSession::HandlePlayerLoginFromDB(LoginQueryHolder const& holder)
     pCurrChar->SetInGameTime(GameTime::GetGameTimeMS().count());
 
     // announce group about member online (must be after add to player list to receive announce to self)
-    if (Group* group = pCurrChar->GetGroup())
+    if (sToCloud9Sidecar->ClusterModeEnabled())
     {
-        if (sToCloud9Sidecar->ClusterModeEnabled())
-        {
-            group->RefreshClusterMemberStateFromPlayer(pCurrChar, true);
-            sToCloud9Sidecar->UpdateGroupMemberState(pCurrChar, true);
-        }
-        else
-            group->SendUpdateImmediate();
+        sToCloud9Sidecar->UpdateGroupMemberState(pCurrChar, true);
 
+        if (Group* group = pCurrChar->GetGroup())
+            group->ResetMaxEnchantingLevel();
+    }
+    else if (Group* group = pCurrChar->GetGroup())
+    {
+        group->SendUpdateImmediate();
         group->ResetMaxEnchantingLevel();
     }
 
@@ -1280,15 +1280,13 @@ void WorldSession::HandlePlayerLoginToCharInWorld(Player* pCurrChar)
         }
     }
 
-    if (Group* group = pCurrChar->GetGroup())
+    if (sToCloud9Sidecar->ClusterModeEnabled())
     {
-        if (sToCloud9Sidecar->ClusterModeEnabled())
-        {
-            group->RefreshClusterMemberStateFromPlayer(pCurrChar, true);
-            sToCloud9Sidecar->UpdateGroupMemberState(pCurrChar, true);
-        }
-        else
-            group->SendUpdateImmediate();
+        sToCloud9Sidecar->UpdateGroupMemberState(pCurrChar, true);
+    }
+    else if (Group* group = pCurrChar->GetGroup())
+    {
+        group->SendUpdateImmediate();
     }
 
     // pussywizard: send instance welcome message as when entering the instance through a portal
