@@ -21,9 +21,11 @@ Primary targets:
 
 - Repository: `/workspace/azerothcore-wotlk`.
 - Branch: `work`.
-- Local source of truth: this repository only. The expected ToCloud9 checkout at
-  `/mnt/c/Users/VicenteyMar/ToCloud9` is not present in this environment, so this
-  audit did not inspect upstream/walkline service code.
+- Local source of truth for production changes: this repository only.
+- External reference source for service contracts: read-only clone of
+  `https://github.com/VG-prog/ToCloud9` at commit `aa66960` in
+  `/tmp/tocloud9-reference`; source code, protobufs, SQL, and C ABI headers were
+  used as evidence only.
 - Existing working tree note: `deps/libsidecar/libsidecar.so` was already
   modified before this audit and was not changed by this audit.
 
@@ -44,8 +46,9 @@ Primary targets:
   `memberGuid, online, level, class, zoneId, mapId, health, maxHealth, powerType,
   power, maxPower`.
 - `deps/libsidecar/stub/libsidecar.h` and `deps/libsidecar/stub/libsidecar.c`
-  declare/define an older 8-argument `TC9UpdateGroupMemberState` signature with
-  `healthPct` and `powerPct`.
+  declare/define an 8-argument percentage `TC9UpdateGroupMemberState`
+  signature with `healthPct` and `powerPct`, matching the verified ToCloud9 Go
+  c-shared source but not the bundled AzerothCore real header.
 - `deps/libsidecar/libsidecar.so` has an ELF header but `readelf` reports that
   section headers extend past the end of the file, and `nm -D` cannot read it.
   This strongly suggests the checked-out shared object is truncated/corrupt or
@@ -158,11 +161,13 @@ Primary targets:
 
 ### P0: build blocker / crash / data corruption
 
-1. **Stub/default build cannot compile the current member-state call path.**
-   The C++ call in `ToCloud9Sidecar::UpdateGroupMemberState()` uses the
-   11-argument real API, but the stub header and stub C implementation expose an
-   8-argument API. Any build that selects the stub (`USE_REAL_LIBSIDECAR=OFF`, or
-   Windows per CMake) should fail compilation at the call site.
+1. **AzerothCore bundled real header/C++ call disagrees with verified ToCloud9 member-state ABI.**
+   The C++ call in `ToCloud9Sidecar::UpdateGroupMemberState()` and
+   `deps/libsidecar/include/libsidecar.h` use an 11-argument raw-value API, but
+   the verified ToCloud9 Go c-shared source and bundled stub expose an
+   8-argument percentage API. Stub builds still need a coordinated fix that
+   matches the actual ToCloud9 contract instead of only matching the stale real
+   header.
 
 2. **The checked-out `deps/libsidecar/libsidecar.so` is likely corrupt/truncated.**
    It has an ELF header and a non-zero size, but `readelf` reports that section
@@ -204,12 +209,12 @@ Primary targets:
    make remote frames update, but it violates the target architecture and risks
    per-player/per-stat fanout from gameplay hot paths.
 
-6. **Remote member state API/contract appears split between percentage and raw
-   values.**
-   The stub `TC9UpdateGroupMemberState` still exposes percentage fields while the
-   real header, inbound struct, and C++ call use raw current/max values plus
-   power type. This makes non-real builds diverge from real builds and obscures
-   which contract groupserver/gateway should own.
+6. **Remote member state service ownership is still transitional and percentage-based in ToCloud9.**
+   The verified ToCloud9 groupserver, gateway, NATS event, and Go c-shared
+   libsidecar contract uses `healthPct` and `powerPct`. Future work should
+   either restore AzerothCore to that percentage ABI or intentionally migrate
+   ToCloud9 and AzerothCore together to a new raw-current/max contract before
+   removing transitional worldserver-originated publication.
 
 ### P2: unsafe / incomplete / risky
 
@@ -289,8 +294,29 @@ subgroup changes, role/flag changes, instance reset/extension, and guild creatio
     before changing protobuf/NATS/gateway/groupserver behavior.
   - Do not invent or regenerate service contracts from the AzerothCore side
     alone.
+  - Verified ToCloud9 reference paths for Phase 1:
+    - `game-server/libsidecar/events-group.go::TC9UpdateGroupMemberState`
+      exports the Go c-shared function with 8 arguments ending in
+      `healthPct` and `powerPct`.
+    - `game-server/libsidecar/libsidecar.h::TC9UpdateGroupMemberState`
+      declares the same 8-argument percentage ABI.
+    - `game-server/libsidecar/events-group.h::GroupMemberStateChanged`
+      carries `healthPct` and `powerPct` only.
+    - `api/proto/v1/group/group.proto::UpdateMemberStateRequest`,
+      `apps/groupserver/server/group.go::UpdateMemberState`,
+      `apps/groupserver/service/group.go::UpdateMemberState`, and
+      `shared/events/events-group.go::GroupEventMemberStateChangedPayload`
+      use percentage member-state fields.
+    - `game-server/libsidecar-cpp/include/events-group.h` does not include the
+      newer ready-check/subgroup/flags/member-state/instance hook structs, so
+      it is not the current source for the Go c-shared ABI used here.
 - **Exact expected behavior:**
-  - Stub and real headers expose the same C ABI for all functions used by C++.
+  - Stub and real headers expose the same C ABI for all functions used by C++,
+    but that ABI must be reconciled against verified ToCloud9 source instead of
+    assuming the bundled real header is authoritative.
+  - For the current ToCloud9 service contract, member-state ABI compatibility
+    means `TC9UpdateGroupMemberState(memberGuid, online, level, class, zoneId,
+    mapId, healthPct, powerPct)`.
   - Stub functions compile and fail safely only when called with cluster mode
     enabled under the stub, as they already intend.
   - The checked-in or copied `libsidecar.so` is a valid Linux x86_64 shared
@@ -329,6 +355,21 @@ subgroup changes, role/flag changes, instance reset/extension, and guild creatio
   - `src/server/game/TC9Sidecar/TC9GrpcHandler.cpp`
   - `src/server/game/Guilds/Guild.cpp::Create`
   - SQL prepared statement usage around player/guild/instance ownership.
+- **Verified ToCloud9 reference files/functions for this phase:**
+  - `api/proto/v1/guid/guid.proto::GuidService.GetGUIDPool` returns
+    `GuidDiapason { start, end }` ranges for a `realmID` and `GuidType`.
+  - `apps/guidserver/server/guids.go::GetGUIDPool` returns those ranges
+    without object-guid packing.
+  - `apps/guidserver/service/guid.go::GetGuids` allocates numeric ranges from
+    per-realm caches.
+  - `apps/guidserver/repo/mysql-max-guid-provider.go` initializes max values
+    from `characters.guid`, `item_instance.guid`, and `instance.id`.
+  - `game-server/libsidecar/guids.go::TC9GetNextAvailableCharacterGuid` and
+    `TC9GetNextAvailableItemGuid` return `CrossrealmMgr.Next(realmID)` values.
+  - `shared/repo/charactersdb.go::CharactersDB` stores separate DB handles and
+    prepared statements by `realmID`, so ToCloud9 treats many SQL identifiers as
+    realm-scoped DB values plus explicit `realmID`, not packed AzerothCore
+    `ObjectGuid` raw values.
 - **Mandatory ToCloud9 verification before persistence/API changes:**
   - Verify current ToCloud9 `guidserver`, character DB migrations, groupserver,
     guildserver, and any protobuf/NATS ID fields before changing generated GUID
@@ -386,6 +427,22 @@ subgroup changes, role/flag changes, instance reset/extension, and guild creatio
   - `src/server/game/Entities/Player/PlayerUpdates.cpp::UpdateZone`
   - `src/server/game/Groups/Group.cpp::SetClusterMemberState`
   - `src/server/game/Groups/Group.cpp::BuildClusterMemberStatsPacket`
+- **Verified ToCloud9 reference files/functions for this phase:**
+  - `api/proto/v1/group/group.proto::UpdateMemberStateRequest` uses
+    `healthPct` and `powerPct`.
+  - `game-server/libsidecar/events-group.go::TC9UpdateGroupMemberState` sends
+    those percentages to `groupServiceClient.UpdateMemberState`.
+  - `apps/groupserver/service/group.go::UpdateMemberState` clamps percentages
+    to `100`, updates online state, and publishes
+    `GroupEventMemberStateChangedPayload`.
+  - `shared/events/events-group.go::GroupEventMemberStateChangedPayload` carries
+    `HealthPct` and `PowerPct`; there is no `powerType`, `health/maxHealth`, or
+    `power/maxPower` in the current service event.
+  - `apps/gateway/session/group-cluster-extra.go::sendPartyMemberStats` renders
+    remote member stats as percentage current values with max `100` and derives
+    power type from class.
+  - No ToCloud9 gateway source was found that extracts player state from
+    worldserver object-update packets or bulk-publishes player snapshots today.
 - **Mandatory ToCloud9 verification before contract changes:**
   - Verify ToCloud9 groupserver/gateway/protobuf/NATS expectations for member
     state before changing event schemas, generated code, NATS subjects, gateway
@@ -394,10 +451,12 @@ subgroup changes, role/flag changes, instance reset/extension, and guild creatio
     confirm the identity field form before changing the sidecar ABI or event
     payload.
 - **Exact expected behavior:**
-  - The outbound member-state contract is one consistent raw-current/max contract
-    or one consistent percent contract; no stub/real divergence remains.
-  - Remote party/raid frames receive online/offline, level, class, zone, map,
-    health/max health, power type, and power/max power consistently.
+  - The outbound member-state contract matches the verified ToCloud9 percentage
+    contract unless ToCloud9 and AzerothCore are deliberately migrated together
+    to a new raw-current/max contract.
+  - For the current contract, remote party/raid frames receive online/offline,
+    level, class, zone, map, `healthPct`, and `powerPct`; gateway derives
+    power type from class and sends max values as `100`.
   - Logs on member-state hot paths are debug-level or sampled.
   - If keeping this path temporarily, updates are deduplicated/throttled enough to
     avoid per-regeneration spam and no new high-frequency polling loop is added.
@@ -432,6 +491,22 @@ subgroup changes, role/flag changes, instance reset/extension, and guild creatio
   - `src/server/game/TC9Sidecar/TC9GroupHooks.cpp`
   - `deps/libsidecar/include/libsidecar.h`
   - `deps/libsidecar/stub/libsidecar.*`
+- **Verified ToCloud9 reference files/functions for this phase:**
+  - `api/proto/v1/group/group.proto::StartReadyCheck`,
+    `SetReadyCheckMemberState`, and `FinishReadyCheck` define the service RPCs.
+  - `apps/groupserver/server/group.go::StartReadyCheck`,
+    `SetReadyCheckMemberState`, and `FinishReadyCheck` forward those RPCs to
+    `apps/groupserver/service/group.go`.
+  - `apps/groupserver/service/group.go::StartReadyCheck`,
+    `SetReadyCheckMemberState`, and `FinishReadyCheck` publish ready-check
+    events.
+  - `shared/events/events-group.go` defines NATS subjects
+    `group.readycheck.started`, `group.readycheck.member.state`, and
+    `group.readycheck.finished`.
+  - `apps/gateway/session/group-cluster-extra.go::HandleRaidReadyCheck` calls
+    groupserver for client-originated start/response packets, and
+    `HandleEventGroupReadyCheckStarted`, `HandleEventGroupReadyCheckMemberState`,
+    and `HandleEventGroupReadyCheckFinished` emit client-facing packets.
 - **Mandatory ToCloud9 verification before API changes:**
   - Verify ToCloud9 ready-check protobuf/NATS/service contracts and generated
     sidecar functions before adding or changing outbound ready-check APIs.
@@ -467,6 +542,18 @@ subgroup changes, role/flag changes, instance reset/extension, and guild creatio
   - `src/server/game/TC9Sidecar/TC9GroupHooks.cpp`
   - `deps/libsidecar/include/libsidecar.h`
   - `deps/libsidecar/stub/libsidecar.*`
+- **Verified ToCloud9 reference files/functions for this phase:**
+  - `api/proto/v1/group/group.proto::ChangeMemberSubGroup` defines the service
+    RPC.
+  - `apps/groupserver/server/group.go::ChangeMemberSubGroup` forwards to
+    `apps/groupserver/service/group.go::ChangeMemberSubGroup`, which validates
+    leader/assistant permission, persists `member.SubGroup`, and publishes
+    `GroupMemberSubGroupChanged`.
+  - `shared/events/events-group.go` defines the `group.member.subgroup.changed`
+    NATS subject and `GroupEventMemberSubGroupChangedPayload`.
+  - `apps/gateway/session/group-cluster-extra.go::HandleGroupChangeSubGroup`
+    calls groupserver; `HandleEventGroupMemberSubGroupChanged` refreshes the
+    group update for local clients.
 - **Mandatory ToCloud9 verification before API changes:**
   - Verify ToCloud9 subgroup movement protobuf/NATS/service contracts and
     generated sidecar functions before adding or changing outbound subgroup APIs.
@@ -501,6 +588,19 @@ subgroup changes, role/flag changes, instance reset/extension, and guild creatio
   - `src/server/game/TC9Sidecar/TC9GroupHooks.cpp`
   - `deps/libsidecar/include/libsidecar.h`
   - `deps/libsidecar/stub/libsidecar.*`
+- **Verified ToCloud9 reference files/functions for this phase:**
+  - `api/proto/v1/group/group.proto::SetMemberFlags` defines one RPC carrying
+    final `flags` and `roles`.
+  - `apps/groupserver/server/group.go::SetMemberFlags` forwards to
+    `apps/groupserver/service/group.go::SetMemberFlags`, which validates
+    leader/assistant permission, persists member flags/roles, and publishes
+    `GroupMemberFlagsChanged`.
+  - `shared/events/events-group.go` defines the `group.member.flags.changed`
+    NATS subject and `GroupEventMemberFlagsChangedPayload`.
+  - `apps/gateway/session/group-cluster-extra.go::HandleGroupAssistantLeader`,
+    `HandlePartyAssignment`, and `setGroupMemberFlag` calculate final flags and
+    call groupserver; `HandleEventGroupMemberFlagsChanged` refreshes local group
+    state.
 - **Mandatory ToCloud9 verification before API changes:**
   - Verify ToCloud9 flag/role protobuf/NATS/service contracts and generated
     sidecar functions before adding or changing outbound flag APIs.
@@ -531,6 +631,17 @@ subgroup changes, role/flag changes, instance reset/extension, and guild creatio
   - `src/server/game/Groups/Group.cpp::ResetInstances`
   - `src/server/game/Entities/Player/PlayerMisc.cpp::ResetInstances`
   - `src/server/game/TC9Sidecar/TC9GroupHooks.cpp::OnGroupInstanceResetRequest`
+- **Verified ToCloud9 reference files/functions for this phase:**
+  - `api/proto/v1/group/group.proto::ResetInstance` defines the service RPC.
+  - `apps/groupserver/server/group.go::ResetInstance` forwards to
+    `apps/groupserver/service/group.go::ResetInstance`, which validates group
+    leader permission when grouped and publishes `GroupInstanceResetRequest`.
+  - `shared/events/events-group.go` defines the `group.instance.reset.request`
+    NATS subject and `GroupEventInstanceResetRequestPayload`.
+  - `apps/gateway/session/group-cluster-extra.go::HandleResetInstances` calls
+    groupserver for client-originated reset requests.
+  - `game-server/libsidecar/events-group.go::GroupInstanceResetRequest` maps the
+    NATS payload into the C hook request.
 - **Mandatory ToCloud9 verification before API changes:**
   - Verify ToCloud9 instance-reset protobuf/NATS/service contracts and generated
     sidecar functions before adding or changing outbound reset APIs.
@@ -562,6 +673,19 @@ subgroup changes, role/flag changes, instance reset/extension, and guild creatio
   - `src/server/game/Handlers/CalendarHandler.cpp::HandleSetSavedInstanceExtend`
   - `src/server/game/TC9Sidecar/TC9GroupHooks.cpp::OnGroupInstanceBindExtensionRequest`
   - `src/server/game/Instances/InstanceSaveMgr.cpp::ClusterSetPlayerBindExtension`
+- **Verified ToCloud9 reference files/functions for this phase:**
+  - `api/proto/v1/group/group.proto::SetInstanceBindExtension` defines the
+    service RPC.
+  - `apps/groupserver/server/group.go::SetInstanceBindExtension` forwards to
+    `apps/groupserver/service/group.go::SetInstanceBindExtension`, which
+    publishes `GroupInstanceBindExtensionRequest`.
+  - `shared/events/events-group.go` defines the
+    `group.instance.bind.extension.request` NATS subject and
+    `GroupEventInstanceBindExtensionRequestPayload`.
+  - `apps/gateway/session/group-cluster-extra.go::HandleSetSavedInstanceExtend`
+    calls groupserver for client-originated saved-instance extension requests.
+  - `game-server/libsidecar/events-group.go::GroupInstanceBindExtensionRequest`
+    maps the NATS payload into the C hook request.
 - **Mandatory ToCloud9 verification before API/DB changes:**
   - Verify ToCloud9 bind-extension protobuf/NATS/service contracts, generated
     sidecar functions, and character DB realm/GUID expectations before adding or
@@ -594,6 +718,18 @@ subgroup changes, role/flag changes, instance reset/extension, and guild creatio
   - `src/server/game/TC9Sidecar/TC9GuildHooks.cpp`
   - `deps/libsidecar/include/guild-api.h`
   - `deps/libsidecar/stub/guild-api.h`
+- **Verified ToCloud9 reference files/functions for this phase:**
+  - `api/proto/v1/worldserver/worldserver.proto::WorldServerService.CreateGuild`
+    is the ToCloud9 RPC for guild creation.
+  - `game-server/libsidecar/grpc-api.go` registers `CreateGuild` on the
+    worldserver gRPC bindings.
+  - `game-server/libsidecar/guild-api.go::CreateGuildHandler` calls the C
+    `GuildCreateHandler`; `game-server/libsidecar/guild-api.h` defines
+    `GuildCreateRequest`, `GuildCreateResponse`, and error codes.
+  - `game-server/libsidecar/grpcapi/server-guild.go::CreateGuild` maps C handler
+    responses to gRPC statuses.
+  - `api/proto/v1/guilds/guilds.proto::GuildService` has no `CreateGuild` RPC,
+    so guildserver is not the creation entrypoint in this ToCloud9 snapshot.
 - **Mandatory ToCloud9 verification before API/DB changes:**
   - Verify ToCloud9 guildserver/guild-create contracts, generated sidecar API,
     duplicate-name rules, error-code mapping, and character DB ownership before
@@ -662,20 +798,116 @@ subgroup changes, role/flag changes, instance reset/extension, and guild creatio
 - **Rollback strategy:**
   - Revert documentation/design updates only. No runtime or DB state is changed.
 
-## Open questions
+## Verified ToCloud9 answers and remaining questions
 
-1. What exact ID form does current ToCloud9 `guidserver` return for character and
-   item GUIDs in this branch: low counter, DB-value GUID, or full raw object GUID?
-2. Does current ToCloud9 groupserver already expose outbound APIs for ready-check,
-   subgroup, flags/roles, instance reset, and bind extension, or are only inbound
-   hooks generated in AzerothCore?
-3. Does current ToCloud9 member-state contract expect raw health/max/power or
-   percentages? The AzerothCore real header and stub disagree.
-4. Which DB columns in the ToCloud9 character schema are realm-scoped low counters
-   vs full crossrealm/raw IDs?
-5. Is guild creation intended to be sidecar/gRPC-only, petition-only, or both?
-6. Should transitional worldserver member-state publication be retained behind a
-   config flag while gateway extraction is implemented?
+Reference source: read-only clone of `https://github.com/VG-prog/ToCloud9` at
+commit `aa66960`. Source code, protobuf, SQL, and generated C headers were used
+as evidence; README/issues were not used as instructions.
+
+### Resolved answers
+
+1. **ToCloud9 `guidserver` returns realm-scoped numeric DB GUID ranges, not
+   packed AzerothCore `ObjectGuid` raw values.**
+   Evidence: `api/proto/v1/guid/guid.proto::GetGUIDPool` returns
+   `GuidDiapason { start, end }` for a `realmID` and `GuidType`;
+   `apps/guidserver/server/guids.go::GetGUIDPool` forwards the ranges returned
+   by `apps/guidserver/service/guid.go::GetGuids`;
+   `apps/guidserver/repo/mysql-max-guid-provider.go` initializes character,
+   item, and instance maxima from `SELECT COALESCE(MAX(guid), 0) FROM
+   characters`, `SELECT COALESCE(MAX(guid), 0) FROM item_instance`, and
+   `SELECT COALESCE(MAX(id), 0) FROM instance`;
+   `game-server/libsidecar/guids.go::TC9GetNextAvailableCharacterGuid` and
+   `TC9GetNextAvailableItemGuid` return the next value from a per-realm
+   `CrossrealmMgr`. No inspected GUID path packs high-guid/realm bits into an
+   AzerothCore raw `ObjectGuid`.
+
+2. **ToCloud9 groupserver exposes outbound RPCs and NATS events for ready
+   check, subgroup changes, member flags/roles, member state, instance reset,
+   and instance bind extension.**
+   Evidence: `api/proto/v1/group/group.proto::GroupService` declares
+   `StartReadyCheck`, `SetReadyCheckMemberState`, `FinishReadyCheck`,
+   `ChangeMemberSubGroup`, `SetMemberFlags`, `UpdateMemberState`,
+   `ResetInstance`, and `SetInstanceBindExtension`;
+   `apps/groupserver/server/group.go` forwards each RPC to
+   `apps/groupserver/service/group.go`; that service publishes corresponding
+   `GroupEvent...` payloads through `shared/events/producer-group.go`;
+   `shared/events/events-group.go::SubjectName` maps them to NATS subjects
+   `group.readycheck.started`, `group.readycheck.member.state`,
+   `group.readycheck.finished`, `group.member.subgroup.changed`,
+   `group.member.flags.changed`, `group.member.state.changed`,
+   `group.instance.reset.request`, and
+   `group.instance.bind.extension.request`.
+
+3. **ToCloud9 member-state contract currently expects percentages, not raw
+   health/maxHealth/power/maxPower plus powerType.**
+   Evidence: `api/proto/v1/group/group.proto::UpdateMemberStateRequest` has
+   `healthPct` and `powerPct`;
+   `apps/groupserver/service/group.go::UpdateMemberState` accepts
+   `healthPct, powerPct uint16` and clamps both at `100`;
+   `shared/events/events-group.go::GroupEventMemberStateChangedPayload` carries
+   `HealthPct` and `PowerPct`;
+   `game-server/libsidecar/events-group.go::TC9UpdateGroupMemberState` exports
+   an 8-argument C function ending in `healthPct` and `powerPct`;
+   `game-server/libsidecar/events-group.h::GroupMemberStateChanged` and
+   `game-server/libsidecar/libsidecar.h::TC9UpdateGroupMemberState` use the
+   same percentage fields.
+
+4. **ToCloud9 DB identity columns are mostly realm-scoped low DB values plus an
+   explicit `realmID`; no DB column was proven to store packed AzerothCore raw
+   `ObjectGuid` values.**
+   Evidence: `shared/repo/charactersdb.go::CharactersDB` maintains DB handles
+   and prepared statements per `realmID`; charserver queries `characters.guid`
+   and joins `guild_member.guid` by realm DB in
+   `apps/charserver/repo/characters_mysql.go`; groupserver writes/reads
+   `groups.guid`, `groups.leaderGuid`, `groups.looterGuid`,
+   `groups.masterLooterGuid`, and `group_member.memberGuid` through
+   realm-scoped prepared statements in `apps/groupserver/repo/stmt.go`;
+   guildserver writes/reads `guild.guildid`, `guild.leaderguid`, and
+   `guild_member.guid` through realm-scoped statements in
+   `apps/guildserver/repo/stmts.go` and `apps/guildserver/repo/guilds_mysql.go`;
+   ToCloud9 migrations create `guild_invites.charGuid`, `guild_invites.guildId`,
+   `group_invites.invited`, `group_invites.inviter`, and
+   `group_invites.groupId` as `int unsigned`. `channels_members.playerGUID` is
+   `BIGINT UNSIGNED`, but chat/char caches still key it with explicit
+   `realmID`, so it is not evidence of a packed raw `ObjectGuid` contract by
+   itself.
+
+5. **Guild creation is intended to enter AzerothCore/worldserver through the
+   worldserver/libsidecar gRPC API, not guildserver `CreateGuild`, and ToCloud9
+   does not show a petition workflow implementation for creation.**
+   Evidence: `api/proto/v1/worldserver/worldserver.proto::WorldServerService`
+   declares `CreateGuild`; `game-server/libsidecar/grpc-api.go` registers
+   `CreateGuild: CreateGuildHandler`;
+   `game-server/libsidecar/guild-api.go::CreateGuildHandler` calls the C
+   `GuildCreateHandler`; `game-server/libsidecar/grpcapi/server-guild.go` maps
+   C handler error codes to gRPC `CreateGuildResponse` statuses. In contrast,
+   `api/proto/v1/guilds/guilds.proto::GuildService` has invite, roster, rank,
+   note, message, leave, and kick RPCs, but no `CreateGuild` RPC.
+
+6. **The current ToCloud9 implementation still supports transitional
+   worldserver-side member-state publication, but the target architecture should
+   replace continuous HP/power publication with gateway-driven snapshots once a
+   gateway extraction contract exists.**
+   Evidence: `game-server/libsidecar/events-group.go::TC9UpdateGroupMemberState`
+   synchronously sends percentages to groupserver today, and groupserver/gateway
+   consume `GroupEventMemberStateChangedPayload` to render remote party member
+   stats. However, no inspected ToCloud9 gateway code extracts HP/power/zone
+   snapshots from object updates or publishes bulk player-state snapshots. Until
+   that future contract exists, removing all worldserver-side publication would
+   likely regress remote party/raid frames.
+
+### Remaining unresolved items
+
+1. **No original open question remains unresolved by the ToCloud9 reference
+   audit.** The current service-side contracts are identifiable in the reference
+   repository. The authoritative c-shared source for the current ABI is
+   `game-server/libsidecar`; `game-server/libsidecar-cpp` is a separate C++
+   implementation whose public group header lacks the newer group-extra hook
+   structs and should not be used to infer the current Go c-shared ABI.
+2. **Gateway-driven bulk player-state snapshots remain future work, not a hidden
+   existing contract.** The ToCloud9 repo has gateway packet handling and group
+   event rendering, but no proven object-update extraction, snapshot store, bulk
+   flush event, or groupserver routing contract for that design.
 
 ## Implementation log
 
@@ -690,6 +922,13 @@ subgroup changes, role/flag changes, instance reset/extension, and guild creatio
 - Reordered implementation milestones per user priority: build/libsidecar ABI,
   GUID boundaries, transitional live member-state hardening, discrete group
   features, instance features, guild creation, then future design-only work.
+- ToCloud9 reference audit proved that the current ToCloud9 Go c-shared
+  libsidecar and groupserver use the 8-argument percentage member-state ABI.
+- The reference clone was read-only at `/tmp/tocloud9-reference` commit
+  `aa66960`.
+- Updated this plan with verified ToCloud9 source/proto/SQL answers; no
+  production code, gameplay code, generated real headers, stubs, or the
+  pre-existing modified `deps/libsidecar/libsidecar.so` were modified.
 
 ## Verification log
 
@@ -717,6 +956,65 @@ rg -n "^### Phase|Mandatory ToCloud9|gateway-driven|transitional|worldserver-sid
 git diff --check -- CLUSTER_PLAN.md
 ```
 
+Commands run during Phase 1 implementation:
+
+```bash
+git diff --stat
+git diff --check -- deps/libsidecar/stub/libsidecar.h deps/libsidecar/stub/libsidecar.c CLUSTER_PLAN.md
+cmake -S . -B build-phase1-stub -DUSE_REAL_LIBSIDECAR=OFF -DSCRIPTS=static -DMODULES=static -DBUILD_TESTING=OFF
+cc -std=c11 -Ideps/libsidecar/stub -fsyntax-only deps/libsidecar/stub/libsidecar.c
+cc -std=c11 -Ideps/libsidecar/stub -fsyntax-only deps/libsidecar/stub/events-group.c
+diff -u <(rg -n "TC9UpdateGroupMemberState" deps/libsidecar/include/libsidecar.h) <(rg -n "TC9UpdateGroupMemberState" deps/libsidecar/stub/libsidecar.h)
+stat -c '%n %s bytes' deps/libsidecar/libsidecar.so
+readelf -h deps/libsidecar/libsidecar.so || true
+nm -D deps/libsidecar/libsidecar.so | rg 'TC9UpdateGroupMemberState|TC9SetOnGroupReady|TC9SetGuildCreateHandler' || true
+```
+
+Phase 1 results:
+
+- `git diff --check` passed for the Phase 1 text/stub changes.
+- Stub syntax checks passed for `deps/libsidecar/stub/libsidecar.c` and
+  `deps/libsidecar/stub/events-group.c`.
+- The first Phase 1 real/stub header comparison had no diff after aligning the
+  stub to the bundled real header; the later ToCloud9 audit proved this matched
+  the wrong source of truth because the service-side Go c-shared ABI is
+  percentage-based.
+- Stub CMake configure reached dependency discovery and reported
+  `Use stub for libsidecar: Yes`, then failed because Boost development
+  components are missing in this environment.
+- `deps/libsidecar/libsidecar.so` remains a pre-existing modified/corrupt
+  working-tree artifact. `readelf` still reports section headers past EOF and
+  `nm -D` still cannot read dynamic symbols. Regenerate it from ToCloud9 with:
+
+```bash
+cd /mnt/c/Users/VicenteyMar/ToCloud9
+go build -o bin/libsidecar.so -buildmode=c-shared ./game-server/libsidecar/
+cp bin/libsidecar.so /mnt/c/Users/VicenteyMar/azerothcore-wotlk/deps/libsidecar/libsidecar.so
+sudo cp bin/libsidecar.so /usr/lib/libsidecar.so
+```
+
+Commands run during ToCloud9 reference audit:
+
+```bash
+git clone --depth 1 https://github.com/VG-prog/ToCloud9 /tmp/tocloud9-reference
+cd /tmp/tocloud9-reference && git rev-parse --short HEAD
+rg -n "guidserver|Guid|GUID|NextAvailable|CreateGuild|GuildCreate|groupserver|ReadyCheck|SubGroup|Assistant|MainTank|MainAssist|InstanceReset|BindExtension|MemberState|UpdateGroupMemberState|healthPct|powerPct|maxHealth|powerType|NATS|nats|protobuf|proto|gateway|game-load-balancer" apps game-server sql -g '!**/node_modules/**'
+rg -n "TC9UpdateGroupMemberState|StartReadyCheck|ReadyCheck|SubGroup|SetMemberFlags|ResetInstance|BindExtension|HealthPct|PowerPct|healthPct|powerPct|maxHealth|powerType" game-server/libsidecar game-server/libsidecar-cpp/include apps/gateway -g '!**/*_test.go'
+rg -n "CreateGuild|GuildCreate|create guild|Petition|petition|leaderGuid|GuildName|guild name|NameExists|Leader" apps/guildserver game-server/libsidecar api/proto/v1/guilds sql/characters/mysql shared/events -g '!**/*_test.go'
+rg -n "type CharactersDB|DBByRealm|PreparedStatement\(realmID|mapKeyForRealmAndGuid|playerGUID BIGINT|guild_invites|group_invites|channels_members|channels_bans" shared apps/chatserver sql/characters/mysql -g '*.go' -g '*.sql'
+git diff --check --cached
+git diff --check -- CLUSTER_PLAN.md
+```
+
+ToCloud9 reference audit results:
+
+- Direct `git clone` succeeded and resolved ToCloud9 commit `aa66960`.
+- Resolved the open GUID, groupserver API/event, member-state percentage vs raw,
+  DB identity, guild creation, and transitional member-state questions above.
+- Confirmed no production code, gameplay code, generated real headers, or stubs
+  were changed; only this plan was updated.
+- `git diff --check -- CLUSTER_PLAN.md` passed after the documentation update.
+
 Results:
 
 - `git status` showed branch `work` and a pre-existing modified
@@ -735,8 +1033,7 @@ Results:
 
 ## Rollback notes
 
-- This audit/plan update changes only `CLUSTER_PLAN.md`.
-- To roll back this audit/plan update, revert the `CLUSTER_PLAN.md` documentation
-  change.
-- The audit and phase-order update did not modify production code or the
-  pre-existing modified `deps/libsidecar/libsidecar.so`.
+- This follow-up audit updates only `CLUSTER_PLAN.md`.
+- To roll back this follow-up, revert the `CLUSTER_PLAN.md` documentation change.
+- The follow-up did not modify production code, gameplay code, generated real
+  headers, stubs, or the pre-existing modified `deps/libsidecar/libsidecar.so`.
