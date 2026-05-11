@@ -17,6 +17,7 @@
 
 #include "TC9Sidecar.h"
 #include "Config.h"
+#include "Group.h"
 #include "InstanceSaveMgr.h"
 #include "libsidecar.h"
 #include "Log.h"
@@ -184,8 +185,17 @@ void ToCloud9Sidecar::UpdateGroupMemberState(Player* player, bool online)
     if (!_clusterModeEnabled || !player)
         return;
 
-    if (!player->GetGroup() && !player->GetOriginalGroup())
+    Group* group = player->GetGroup();
+    Group* originalGroup = player->GetOriginalGroup();
+
+    if (!group && !originalGroup)
         return;
+
+    if (group)
+        group->RefreshClusterMemberStateFromPlayer(player, online);
+
+    if (originalGroup && originalGroup != group)
+        originalGroup->RefreshClusterMemberStateFromPlayer(player, online);
 
     Powers powerType = player->getPowerType();
 

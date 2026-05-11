@@ -622,14 +622,7 @@ void WorldSession::LogoutPlayer(bool save, bool redirecting)
     redirecting = redirecting || m_redirectingToAnotherNode;
 
     if (_player && sToCloud9Sidecar->ClusterModeEnabled())
-    {
-        bool const keepOnline = redirecting;
-
-        if (Group* group = _player->GetGroup())
-            group->RefreshClusterMemberStateFromPlayer(_player, keepOnline);
-
-        sToCloud9Sidecar->UpdateGroupMemberState(_player, keepOnline);
-    }
+        sToCloud9Sidecar->UpdateGroupMemberState(_player, redirecting);
 
     if (_player)
     {
@@ -1564,8 +1557,7 @@ void WorldSession::HandleTC9PrepareForRedirect(WorldPacket& /*recvData*/)
     LOG_DEBUG("network", "Starting saving, AccountId = {}", GetAccountId());
     m_redirectingToAnotherNode = true;
 
-    if (Group* group = player->GetGroup())
-        group->RefreshClusterMemberStateFromPlayer(player, true);
+    sToCloud9Sidecar->UpdateGroupMemberState(player, true);
 
     CharacterDatabaseTransaction trans = CharacterDatabase.BeginTransaction();
 
