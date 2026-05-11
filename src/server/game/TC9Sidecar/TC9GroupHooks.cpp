@@ -55,6 +55,7 @@ void ToCloud9GroupHooks::OnGroupCreated(EventObjectGroup* group)
 
     sGroupMgr->AddGroup(g);
     g->SendUpdateLocal();
+    g->SendClusterAllMemberStats();
 }
 
 void ToCloud9GroupHooks::OnGroupDisbanded(uint32 group)
@@ -200,6 +201,17 @@ void ToCloud9GroupHooks::OnGroupMemberStateChanged(GroupMemberStateChanged* requ
 {
     if (!request)
         return;
+
+    LOG_INFO("server", "TC9 group member state changed: group={}, member={}, online={}, level={}, class={}, zone={}, map={}, hp={}, power={}",
+        request->groupGuid,
+        request->memberGuid,
+        uint32(request->online),
+        uint32(request->level),
+        uint32(request->playerClass),
+        request->zoneId,
+        request->mapId,
+        request->healthPct,
+        request->powerPct);
 
     Group* group = sGroupMgr->GetGroupByGUID(request->groupGuid);
     if (!group)

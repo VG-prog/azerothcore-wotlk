@@ -293,7 +293,9 @@ public:
     void SendUpdateLocal();
     void SendUpdateImmediate();
     void SendUpdateToPlayer(ObjectGuid playerGUID, MemberSlot* slot = nullptr);
+
     void SendClusterMemberStats(MemberSlot const& member);
+    void SendClusterAllMemberStats();
 
     void UpdatePlayerOutOfRange(Player* player);
     // ignore: GUID of player that will be ignored
