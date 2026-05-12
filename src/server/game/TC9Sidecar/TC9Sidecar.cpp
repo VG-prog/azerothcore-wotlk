@@ -199,7 +199,7 @@ void ToCloud9Sidecar::UpdateGroupMemberState(Player* player, bool online)
     }
 
     LOG_INFO("server", "TC9 sending group member state: member={}, online={}, level={}, class={}, zone={}, map={}, group={}, originalGroup={}",
-        player->GetGUID().GetRawValue(),
+        player->GetGUID().GetDBValue(),
         online ? 1 : 0,
         uint32(player->GetLevel()),
         uint32(player->getClass()),
@@ -220,7 +220,7 @@ void ToCloud9Sidecar::UpdateGroupMemberState(Player* player, bool online)
     Powers powerType = player->getPowerType();
 
     TC9UpdateGroupMemberState(
-        player->GetGUID().GetRawValue(),
+        player->GetGUID().GetDBValue(),
         online ? 1 : 0,
         player->GetLevel(),
         player->getClass(),

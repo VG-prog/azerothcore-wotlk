@@ -32,7 +32,7 @@ namespace
 
     ObjectGuid TC9ItemGuid(uint64 value)
     {
-        return ObjectGuid(value);
+        return value ? ObjectGuid::CreateItemFromDBValue(value) : ObjectGuid::Empty;
     }
 
     void AddRealmContextIfNeeded(CharacterDatabaseTransaction trans, ObjectGuid playerGuid)
@@ -61,7 +61,7 @@ GetPlayerItemsByGuidsResponse ToCloud9GrpcHandler::GetPlayerItemsByGuids(uint64 
     std::unique_ptr<Item* []> foundItems(new Item * [itemsLen]);
     for (int i = 0; i < itemsLen; i++)
     {
-        foundItems[i] = player->GetItemByGuid(ObjectGuid(items[i]));
+        foundItems[i] = player->GetItemByGuid(TC9ItemGuid(items[i]));
         if (foundItems[i])
             itemsFound++;
     }
@@ -77,7 +77,7 @@ GetPlayerItemsByGuidsResponse ToCloud9GrpcHandler::GetPlayerItemsByGuids(uint64 
         Item* pItem = foundItems[i];
 
         PlayerItem item;
-        item.guid = pItem->GetGUID().GetRawValue();
+        item.guid = pItem->GetGUID().GetDBValue();
         item.entry = pItem->GetEntry();
         item.owner = playerGuid;
         item.bagSlot = pItem->GetBagSlot();
@@ -129,7 +129,7 @@ RemoveItemsWithGuidsFromPlayerResponse ToCloud9GrpcHandler::RemoveItemsWithGuids
     std::unique_ptr<uint64[]> deletedItems(new uint64 [itemsLen]);
     for (int i = 0; i < itemsLen; i++)
     {
-        Item *item = player->GetItemByGuid(ObjectGuid(items[i]));
+        Item *item = player->GetItemByGuid(TC9ItemGuid(items[i]));
         if (!item)
         {
             deletedItems[i] = 0;
@@ -137,7 +137,7 @@ RemoveItemsWithGuidsFromPlayerResponse ToCloud9GrpcHandler::RemoveItemsWithGuids
         }
 
         itemsFound++;
-        deletedItems[i] = item->GetGUID().GetRawValue();
+        deletedItems[i] = item->GetGUID().GetDBValue();
 
         item->SetNotRefundable(player);
         player->MoveItemFromInventory(item->GetBagSlot(), item->GetSlot(), true);
@@ -186,7 +186,7 @@ PlayerItemErrorCode ToCloud9GrpcHandler::AddExistingItemToPlayer(AddExistingItem
         return PlayerItemErrorUnknownTemplate;
 
     Item* item = NewItemOrBag(proto);
-    if (!item->Create(ObjectGuid::LowType(request->itemGuid), request->itemEntry, player))
+    if (!item->Create(TC9ItemGuid(request->itemGuid).GetCounter(), request->itemEntry, player))
     {
         delete item;
         return PlayerItemErrorFailedToCreateItem;
@@ -424,7 +424,7 @@ GuildCreateResponse ToCloud9GrpcHandler::CreateGuild(GuildCreateRequest* request
         return response;
     }
 
-    Player* leader = ObjectAccessor::FindConnectedPlayer(ObjectGuid::CreatePlayerFromDBValue(request->leaderGuid));
+    Player* leader = ObjectAccessor::FindConnectedPlayer(TC9PlayerGuid(request->leaderGuid));
     if (!leader)
     {
         response.errorCode = GuildCreateErrorCodeLeaderNotFound;

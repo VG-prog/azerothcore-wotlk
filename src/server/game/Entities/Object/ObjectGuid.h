@@ -145,13 +145,7 @@ class ObjectGuid
         [[nodiscard]] uint32   GetEntry() const { return HasEntry() ? uint32((_guid >> 24) & UI64LIT(0x0000000000FFFFFF)) : 0; }
         [[nodiscard]] uint16   GetRealmID() const { return IsPlayer() ? uint16((_guid >> 32) & UI64LIT(0xFFFF)) : 0; }
 
-        [[nodiscard]] uint64 GetDBValue() const
-        {
-            if (IsPlayer())
-                return GetRealmID() != 0 ? GetRawValue() : uint64(GetCounter());
-
-            return uint64(GetCounter());
-        }
+        [[nodiscard]] uint64 GetDBValue() const { return uint64(GetCounter()); }
 
         static ObjectGuid CreatePlayerFromDBValue(uint64 value)
         {
@@ -162,6 +156,32 @@ class ObjectGuid
             return ObjectGuid::Create<HighGuid::Player>(LowType(value));
         }
 
+        static ObjectGuid CreateItemFromDBValue(uint64 value)
+        {
+            ObjectGuid raw(value);
+            if (raw.IsItem())
+                return raw;
+
+            return ObjectGuid::Create<HighGuid::Item>(LowType(value));
+        }
+
+        static ObjectGuid CreateGroupFromDBValue(uint64 value)
+        {
+            ObjectGuid raw(value);
+            if (raw.IsGroup())
+                return raw;
+
+            return ObjectGuid::Create<HighGuid::Group>(LowType(value));
+        }
+
+        static ObjectGuid CreateInstanceFromDBValue(uint64 value)
+        {
+            ObjectGuid raw(value);
+            if (raw.IsInstance())
+                return raw;
+
+            return ObjectGuid::Create<HighGuid::Instance>(LowType(value));
+        }
 
         [[nodiscard]] LowType  GetCounter()  const
         {
