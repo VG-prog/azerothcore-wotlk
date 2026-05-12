@@ -32,7 +32,7 @@ void ToCloud9GroupHooks::OnGroupCreated(EventObjectGroup* group)
     LOG_INFO("server", "Group created. ID: {}; Leader: {}.", group->guid, group->leader);
 
     Group* g = new Group();
-    g->m_guid = ObjectGuid(HighGuid::Group, group->guid);
+    g->m_guid = ObjectGuid::CreateGroupFromDBValue(group->guid);
     g->m_leaderGuid = TC9PlayerGuid(group->leader);
     g->m_dungeonDifficulty = Difficulty(group->difficulty);
     g->m_raidDifficulty = Difficulty(group->raidDifficulty);
