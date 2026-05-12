@@ -32,17 +32,6 @@
 
 #define AVAILABLE_MAPS_ALL_MAPS ""
 
-namespace
-{
-    uint16 TC9Percent(uint64 current, uint64 max)
-    {
-        if (!max)
-            return 100;
-
-        return uint16(std::min<uint64>(100, current * 100 / max));
-    }
-}
-
 MonitoringDataCollectorResponse HandleMonitoringRequest();
 
 ToCloud9Sidecar* ToCloud9Sidecar::instance()
