@@ -54,6 +54,7 @@ public:
 
     void UpdateGroupMemberState(Player* player, bool online);
     void FlushGroupMemberStateUpdates(bool force = false);
+    bool ChangeGroupMemberSubGroup(uint64 updaterGuid, uint64 memberGuid, uint8 subGroup);
 
     uint64 GenerateCharacterGuid(uint16 realmId = DEFAULT_NON_CROSSREALM_REALM_ID);
     uint64 GenerateItemGuid(uint16 realmId = DEFAULT_NON_CROSSREALM_REALM_ID);
