@@ -30,11 +30,6 @@ namespace
         return value ? ObjectGuid::CreatePlayerFromDBValue(value) : ObjectGuid::Empty;
     }
 
-    ObjectGuid TC9ItemGuid(uint64 value)
-    {
-        return ObjectGuid(value);
-    }
-
     void AddRealmContextIfNeeded(CharacterDatabaseTransaction trans, ObjectGuid playerGuid)
     {
         if (!sToCloud9Sidecar->IsCrossrealm())

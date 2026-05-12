@@ -77,11 +77,6 @@ namespace
         WorldSession* session = player->GetSession();
         return !session->PlayerLogout() || session->IsRedirectingToAnotherNode();
     }
-
-    uint16 ClampPct(uint16 value)
-    {
-        return value > 100 ? 100 : value;
-    }
 }
 
 Roll::Roll(ObjectGuid _guid, LootItem const& li) : itemGUID(_guid), itemid(li.itemid),
