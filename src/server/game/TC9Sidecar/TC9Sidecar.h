@@ -21,11 +21,13 @@
 #include "AsyncCallbackProcessor.h"
 #include "AsyncTask.h"
 #include "Common.h"
+#include "ObjectGuid.h"
 #include <unordered_map>
 
 #define MAX_MAP_ID 800 // Probably too much, but let's lean towards caution.
 #define DEFAULT_NON_CROSSREALM_REALM_ID 0
 
+class Group;
 class Player;
 
 class ToCloud9Sidecar
@@ -54,6 +56,9 @@ public:
 
     void UpdateGroupMemberState(Player* player, bool online);
     void FlushGroupMemberStateUpdates(bool force = false);
+    bool StartGroupReadyCheck(Group* group, ObjectGuid leaderGuid, uint32 durationMs);
+    bool SetReadyCheckMemberState(Group* group, ObjectGuid memberGuid, uint8 state);
+    bool FinishGroupReadyCheck(Group* group);
 
     uint64 GenerateCharacterGuid(uint16 realmId = DEFAULT_NON_CROSSREALM_REALM_ID);
     uint64 GenerateItemGuid(uint16 realmId = DEFAULT_NON_CROSSREALM_REALM_ID);

@@ -198,6 +198,9 @@ extern void TC9SetOnGroupMemberStateChangedHook(OnGroupMemberStateChangedHook h)
 extern void TC9SetOnGroupInstanceResetRequestHook(OnGroupInstanceResetRequestHook h);
 extern void TC9SetOnGroupInstanceBindExtensionRequestHook(OnGroupInstanceBindExtensionRequestHook h);
 extern void TC9UpdateGroupMemberState(uint64_t memberGuid, uint8_t online, uint8_t level, uint8_t playerClass, uint32_t zoneId, uint32_t mapId, uint32_t health, uint32_t maxHealth, uint8_t powerType, uint32_t power, uint32_t maxPower);
+extern void TC9StartReadyCheck(uint32_t groupGuid, uint64_t leaderGuid, uint32_t durationMs);
+extern void TC9SetReadyCheckMemberState(uint32_t groupGuid, uint64_t memberGuid, uint8_t state);
+extern void TC9FinishReadyCheck(uint32_t groupGuid);
 
 // TC9SetOnGuildMemberAddedHook sets hook for guild member added event.
 //
