@@ -6995,12 +6995,18 @@ void Unit::SendAttackStateUpdate(uint32 HitInfo, Unit* target, uint8 /*SwingType
 
 void Unit::setPowerType(Powers new_powertype)
 {
+    Powers oldPowerType = getPowerType();
+
     SetByteValue(UNIT_FIELD_BYTES_0, 3, new_powertype);
 
     if (IsPlayer())
     {
-        if (ToPlayer()->GetGroup())
-            ToPlayer()->SetGroupUpdateFlag(GROUP_UPDATE_FLAG_POWER_TYPE);
+        Player* player = ToPlayer();
+        if (player->GetGroup())
+            player->SetGroupUpdateFlag(GROUP_UPDATE_FLAG_POWER_TYPE);
+
+        if (sToCloud9Sidecar->ClusterModeEnabled() && oldPowerType != new_powertype)
+            sToCloud9Sidecar->UpdateGroupMemberState(player, true);
     }
     else if (Pet* pet = ToCreature()->ToPet())
     {

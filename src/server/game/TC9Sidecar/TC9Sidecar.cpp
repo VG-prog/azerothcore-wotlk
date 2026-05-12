@@ -17,6 +17,7 @@
 
 #include "TC9Sidecar.h"
 #include "Config.h"
+#include "GameTime.h"
 #include "Group.h"
 #include "GroupMgr.h"
 #include "InstanceSaveMgr.h"
@@ -33,6 +34,11 @@
 #define AVAILABLE_MAPS_ALL_MAPS ""
 
 MonitoringDataCollectorResponse HandleMonitoringRequest();
+
+namespace
+{
+    constexpr uint64 GROUP_MEMBER_STATE_FLUSH_INTERVAL_MS = 5000;
+}
 
 ToCloud9Sidecar* ToCloud9Sidecar::instance()
 {
@@ -80,7 +86,10 @@ void ToCloud9Sidecar::Init(uint16 port, int realmId)
 void ToCloud9Sidecar::Deinit()
 {
     if (_clusterModeEnabled)
+    {
+        FlushGroupMemberStateUpdates(true);
         TC9GracefulShutdown();
+    }
 }
 
 void ToCloud9Sidecar::SetupHooks()
@@ -145,6 +154,7 @@ void ToCloud9Sidecar::ProcessGrpcOrHttpRequests()
 void ToCloud9Sidecar::ProcessAsyncTasks()
 {
     _asyncTasksProcessor.ProcessReadyCallbacks();
+    FlushGroupMemberStateUpdates();
 }
 
 bool ToCloud9Sidecar::IsMapAssigned(uint32 mapId)
@@ -187,16 +197,6 @@ void ToCloud9Sidecar::UpdateGroupMemberState(Player* player, bool online)
             group = sGroupMgr->GetGroupByGUID(cachedGroupGuid.GetCounter());
     }
 
-    LOG_INFO("server", "TC9 sending group member state: member={}, online={}, level={}, class={}, zone={}, map={}, group={}, originalGroup={}",
-        player->GetGUID().GetRawValue(),
-        online ? 1 : 0,
-        uint32(player->GetLevel()),
-        uint32(player->getClass()),
-        player->GetZoneId(),
-        player->GetMapId(),
-        group ? group->GetGUID().GetCounter() : 0,
-        originalGroup ? originalGroup->GetGUID().GetCounter() : 0);
-
     if (!group && !originalGroup)
         return;
 
@@ -208,19 +208,72 @@ void ToCloud9Sidecar::UpdateGroupMemberState(Player* player, bool online)
 
     Powers powerType = player->getPowerType();
 
-    TC9UpdateGroupMemberState(
-        player->GetGUID().GetRawValue(),
-        online ? 1 : 0,
-        player->GetLevel(),
-        player->getClass(),
-        player->GetZoneId(),
-        player->GetMapId(),
-        uint32(player->GetHealth()),
-        uint32(player->GetMaxHealth()),
-        uint8(powerType),
-        uint32(player->GetPower(powerType)),
-        uint32(player->GetMaxPower(powerType))
-    );
+    GroupMemberStateSnapshot snapshot;
+    snapshot.memberGuid = player->GetGUID().GetDBValue();
+    snapshot.online = online ? 1 : 0;
+    snapshot.level = player->GetLevel();
+    snapshot.playerClass = player->getClass();
+    snapshot.zoneId = player->GetZoneId();
+    snapshot.mapId = player->GetMapId();
+    snapshot.health = uint32(player->GetHealth());
+    snapshot.maxHealth = uint32(player->GetMaxHealth());
+    snapshot.powerType = uint8(powerType);
+    snapshot.power = uint32(player->GetPower(powerType));
+    snapshot.maxPower = uint32(player->GetMaxPower(powerType));
+
+    _pendingGroupMemberStates[snapshot.memberGuid] = snapshot;
+
+    LOG_DEBUG("server", "TC9 queued group member state: member={}, online={}, level={}, class={}, zone={}, map={}, health={}, maxHealth={}, powerType={}, power={}, maxPower={}, pending={}",
+        snapshot.memberGuid,
+        uint32(snapshot.online),
+        uint32(snapshot.level),
+        uint32(snapshot.playerClass),
+        snapshot.zoneId,
+        snapshot.mapId,
+        snapshot.health,
+        snapshot.maxHealth,
+        uint32(snapshot.powerType),
+        snapshot.power,
+        snapshot.maxPower,
+        _pendingGroupMemberStates.size());
+
+    if (!online)
+        FlushGroupMemberStateUpdates(true);
+}
+
+void ToCloud9Sidecar::FlushGroupMemberStateUpdates(bool force)
+{
+    if (!_clusterModeEnabled || _pendingGroupMemberStates.empty())
+        return;
+
+    uint64 const now = GameTime::GetGameTimeMS().count();
+    if (!force && _lastGroupMemberStateFlushMs && now < _lastGroupMemberStateFlushMs + GROUP_MEMBER_STATE_FLUSH_INTERVAL_MS)
+        return;
+
+    size_t const count = _pendingGroupMemberStates.size();
+
+    for (auto const& pair : _pendingGroupMemberStates)
+    {
+        GroupMemberStateSnapshot const& snapshot = pair.second;
+        TC9UpdateGroupMemberState(
+            snapshot.memberGuid,
+            snapshot.online,
+            snapshot.level,
+            snapshot.playerClass,
+            snapshot.zoneId,
+            snapshot.mapId,
+            snapshot.health,
+            snapshot.maxHealth,
+            snapshot.powerType,
+            snapshot.power,
+            snapshot.maxPower
+        );
+    }
+
+    _pendingGroupMemberStates.clear();
+    _lastGroupMemberStateFlushMs = now;
+
+    LOG_DEBUG("server", "TC9 flushed group member state batch: count={}", count);
 }
 
 void ToCloud9Sidecar::OnPlayerLeftBattleground(uint64 playerGUID, uint32 realmID, uint32 instanceID)
