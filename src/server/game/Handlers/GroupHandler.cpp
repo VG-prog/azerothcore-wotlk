@@ -648,6 +648,9 @@ void WorldSession::HandleGroupChangeSubGroupOpcode(WorldPacket& recvData)
         guid = sCharacterCache->GetCharacterGuidByName(name);
     }
 
+    if (sToCloud9Sidecar->ChangeGroupMemberSubGroup(senderGuid.GetDBValue(), guid.GetDBValue(), groupNr))
+        return;
+
     group->ChangeMembersGroup(guid, groupNr);
 }
 
@@ -1194,6 +1197,13 @@ void WorldSession::HandleGroupSwapSubGroupOpcode(WorldPacket& recv_data)
     {
         return;
     }
+
+    ObjectGuid senderGuid = GetPlayer()->GetGUID();
+    bool clusterFirstPublished = sToCloud9Sidecar->ChangeGroupMemberSubGroup(senderGuid.GetDBValue(), guid1.GetDBValue(), groupId2);
+    bool clusterSecondPublished = sToCloud9Sidecar->ChangeGroupMemberSubGroup(senderGuid.GetDBValue(), guid2.GetDBValue(), groupId1);
+
+    if (clusterFirstPublished && clusterSecondPublished)
+        return;
 
     group->ChangeMembersGroup(guid1, groupId2);
     group->ChangeMembersGroup(guid2, groupId1);

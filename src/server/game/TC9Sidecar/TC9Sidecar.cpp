@@ -38,6 +38,10 @@ MonitoringDataCollectorResponse HandleMonitoringRequest();
 namespace
 {
     constexpr uint64 GROUP_MEMBER_STATE_FLUSH_INTERVAL_MS = 5000;
+
+#if defined(__GNUC__) || defined(__clang__)
+    extern "C" void TC9ChangeMemberSubGroup(uint64_t updaterGuid, uint64_t memberGuid, uint8_t subGroup) __attribute__((weak));
+#endif
 }
 
 ToCloud9Sidecar* ToCloud9Sidecar::instance()
@@ -178,6 +182,28 @@ uint64 ToCloud9Sidecar::GenerateItemGuid(uint16 realmId)
 uint32 ToCloud9Sidecar::GenerateInstanceGuid(uint16 realmId)
 {
     return uint32(TC9GetNextAvailableInstanceGuid(realmId));
+}
+
+bool ToCloud9Sidecar::ChangeGroupMemberSubGroup(uint64 updaterGuid, uint64 memberGuid, uint8 subGroup)
+{
+    if (!_clusterModeEnabled || !updaterGuid || !memberGuid || subGroup >= MAX_RAID_SUBGROUPS)
+        return false;
+
+#if defined(__GNUC__) || defined(__clang__)
+    if (!TC9ChangeMemberSubGroup)
+    {
+        LOG_WARN("server", "Cluster subgroup change requested but TC9ChangeMemberSubGroup is unavailable; applying local fallback. Updater: {}; Member: {}; SubGroup: {}.",
+                 updaterGuid, memberGuid, subGroup);
+        return false;
+    }
+
+    TC9ChangeMemberSubGroup(updaterGuid, memberGuid, subGroup);
+    return true;
+#else
+    LOG_WARN("server", "Cluster subgroup change requested but optional TC9ChangeMemberSubGroup lookup is unsupported by this compiler; applying local fallback. Updater: {}; Member: {}; SubGroup: {}.",
+             updaterGuid, memberGuid, subGroup);
+    return false;
+#endif
 }
 
 void ToCloud9Sidecar::UpdateGroupMemberState(Player* player, bool online)
