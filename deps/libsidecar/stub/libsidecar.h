@@ -112,8 +112,8 @@ typedef float GoFloat32;
 typedef double GoFloat64;
 #ifdef _MSC_VER
 #include <complex.h>
-typedef _Fcomplex GoComplex64;
-typedef _Dcomplex GoComplex128;
+typedef struct { float real; float imag; } GoComplex64;
+typedef struct { double real; double imag; } GoComplex128;
 #else
 typedef float _Complex GoComplex64;
 typedef double _Complex GoComplex128;
