@@ -54,11 +54,11 @@ public:
     void ProcessGrpcOrHttpRequests();
     void ProcessAsyncTasks();
 
-    void UpdateGroupMemberState(Player* player, bool online);
+    void UpdateGroupMemberState(Player* player, bool online, bool force = false);
     void FlushGroupMemberStateUpdates(bool force = false);
     bool StartGroupReadyCheck(Group* group, ObjectGuid leaderGuid, uint32 durationMs);
     bool SetReadyCheckMemberState(Group* group, ObjectGuid memberGuid, uint8 state);
-    bool FinishGroupReadyCheck(Group* group);
+    bool FinishGroupReadyCheck(Group* group, ObjectGuid playerGuid);
     bool ChangeGroupMemberSubGroup(uint64 updaterGuid, uint64 memberGuid, uint8 subGroup);
     bool SetGroupMemberFlags(uint64 updaterGuid, uint64 memberGuid, uint8 flags, uint8 roles);
 

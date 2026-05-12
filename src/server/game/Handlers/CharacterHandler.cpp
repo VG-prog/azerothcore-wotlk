@@ -951,7 +951,7 @@ void WorldSession::HandlePlayerLoginFromDB(LoginQueryHolder const& holder)
     // announce group about member online (must be after add to player list to receive announce to self)
     if (sToCloud9Sidecar->ClusterModeEnabled())
     {
-        sToCloud9Sidecar->UpdateGroupMemberState(pCurrChar, true);
+        sToCloud9Sidecar->UpdateGroupMemberState(pCurrChar, true, true);
 
         if (Group* group = pCurrChar->GetGroup())
             group->ResetMaxEnchantingLevel();
@@ -1282,7 +1282,7 @@ void WorldSession::HandlePlayerLoginToCharInWorld(Player* pCurrChar)
 
     if (sToCloud9Sidecar->ClusterModeEnabled())
     {
-        sToCloud9Sidecar->UpdateGroupMemberState(pCurrChar, true);
+        sToCloud9Sidecar->UpdateGroupMemberState(pCurrChar, true, true);
     }
     else if (Group* group = pCurrChar->GetGroup())
     {

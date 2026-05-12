@@ -32,6 +32,7 @@
 #include "SocialMgr.h"
 #include "SpellAuras.h"
 #include "TC9Sidecar.h"
+#include "TC9Guid.h"
 #include "Util.h"
 #include "Vehicle.h"
 #include "World.h"
@@ -69,7 +70,7 @@ namespace
         else
             flags &= ~flag;
 
-        return sToCloud9Sidecar->SetGroupMemberFlags(updaterGuid.GetDBValue(), memberGuid.GetDBValue(), flags, roles);
+        return sToCloud9Sidecar->SetGroupMemberFlags(TC9PlayerRawDBGuid(updaterGuid), TC9PlayerRawDBGuid(memberGuid), flags, roles);
     }
 
     constexpr uint32 CLUSTER_READY_CHECK_DURATION_MS = 35000;
@@ -678,7 +679,7 @@ void WorldSession::HandleGroupChangeSubGroupOpcode(WorldPacket& recvData)
         guid = sCharacterCache->GetCharacterGuidByName(name);
     }
 
-    if (sToCloud9Sidecar->ChangeGroupMemberSubGroup(senderGuid.GetDBValue(), guid.GetDBValue(), groupNr))
+    if (sToCloud9Sidecar->ChangeGroupMemberSubGroup(TC9PlayerRawDBGuid(senderGuid), TC9PlayerRawDBGuid(guid), groupNr))
         return;
 
     group->ChangeMembersGroup(guid, groupNr);
@@ -801,7 +802,7 @@ void WorldSession::HandleRaidReadyCheckFinishedOpcode(WorldPacket& /*recvData*/)
     if (!group->IsLeader(GetPlayer()->GetGUID()) && !group->IsAssistant(GetPlayer()->GetGUID()))
         return;
 
-    if (sToCloud9Sidecar->FinishGroupReadyCheck(group))
+    if (sToCloud9Sidecar->FinishGroupReadyCheck(group, GetPlayer()->GetGUID()))
         return;
 
     WorldPacket data(MSG_RAID_READY_CHECK_FINISHED);
@@ -1240,8 +1241,8 @@ void WorldSession::HandleGroupSwapSubGroupOpcode(WorldPacket& recv_data)
     }
 
     ObjectGuid senderGuid = GetPlayer()->GetGUID();
-    bool clusterFirstPublished = sToCloud9Sidecar->ChangeGroupMemberSubGroup(senderGuid.GetDBValue(), guid1.GetDBValue(), groupId2);
-    bool clusterSecondPublished = sToCloud9Sidecar->ChangeGroupMemberSubGroup(senderGuid.GetDBValue(), guid2.GetDBValue(), groupId1);
+    bool clusterFirstPublished = sToCloud9Sidecar->ChangeGroupMemberSubGroup(TC9PlayerRawDBGuid(senderGuid), TC9PlayerRawDBGuid(guid1), groupId2);
+    bool clusterSecondPublished = sToCloud9Sidecar->ChangeGroupMemberSubGroup(TC9PlayerRawDBGuid(senderGuid), TC9PlayerRawDBGuid(guid2), groupId1);
 
     if (clusterFirstPublished && clusterSecondPublished)
         return;

@@ -16,6 +16,7 @@
  */
 
 #include "TC9GrpcHandler.h"
+#include "TC9Guid.h"
 #include "Bag.h"
 #include "BattlegroundMgr.h"
 #include "GuildMgr.h"
@@ -25,11 +26,6 @@
 
 namespace
 {
-    ObjectGuid TC9PlayerGuid(uint64 value)
-    {
-        return value ? ObjectGuid::CreatePlayerFromDBValue(value) : ObjectGuid::Empty;
-    }
-
     ObjectGuid TC9ItemGuid(uint64 value)
     {
         return value ? ObjectGuid::CreateItemFromDBValue(value) : ObjectGuid::Empty;
@@ -48,7 +44,7 @@ namespace
 
 GetPlayerItemsByGuidsResponse ToCloud9GrpcHandler::GetPlayerItemsByGuids(uint64 playerGuid, uint64* items, int itemsLen)
 {
-    ObjectGuid playerObjectGuid = TC9PlayerGuid(playerGuid);
+    ObjectGuid playerObjectGuid = TC9PlayerGuidFromRawDB(playerGuid);
     Player* player = ObjectAccessor::FindPlayer(playerObjectGuid);
     if (!player)
     {
@@ -107,7 +103,7 @@ GetPlayerItemsByGuidsResponse ToCloud9GrpcHandler::GetPlayerItemsByGuids(uint64 
 
 RemoveItemsWithGuidsFromPlayerResponse ToCloud9GrpcHandler::RemoveItemsWithGuidsFromPlayer(uint64 playerGuid, uint64* items, int itemsLen, uint64 assignToPlayerGuid)
 {
-    ObjectGuid playerObjectGuid = TC9PlayerGuid(playerGuid);
+    ObjectGuid playerObjectGuid = TC9PlayerGuidFromRawDB(playerGuid);
     Player* player = ObjectAccessor::FindPlayer(playerObjectGuid);
     if (!player)
     {
@@ -143,7 +139,7 @@ RemoveItemsWithGuidsFromPlayerResponse ToCloud9GrpcHandler::RemoveItemsWithGuids
         player->MoveItemFromInventory(item->GetBagSlot(), item->GetSlot(), true);
 
         item->DeleteFromInventoryDB(trans);
-        item->SetOwnerGUID(TC9PlayerGuid(assignToPlayerGuid));
+        item->SetOwnerGUID(TC9PlayerGuidFromRawDB(assignToPlayerGuid));
         item->SetState(ITEM_CHANGED);
         item->SaveToDB(trans);
 
@@ -177,7 +173,7 @@ RemoveItemsWithGuidsFromPlayerResponse ToCloud9GrpcHandler::RemoveItemsWithGuids
 
 PlayerItemErrorCode ToCloud9GrpcHandler::AddExistingItemToPlayer(AddExistingItemToPlayerRequest* request)
 {
-    Player* player = ObjectAccessor::FindPlayer(TC9PlayerGuid(request->playerGuid));
+    Player* player = ObjectAccessor::FindPlayer(TC9PlayerGuidFromRawDB(request->playerGuid));
     if (!player)
         return PlayerItemErrorCodePlayerNotFound;
 
@@ -226,7 +222,7 @@ PlayerItemErrorCode ToCloud9GrpcHandler::AddExistingItemToPlayer(AddExistingItem
 
 GetMoneyForPlayerResponse ToCloud9GrpcHandler::GetMoneyForPlayer(uint64 playerGuid)
 {
-    ObjectGuid playerObjectGuid = TC9PlayerGuid(playerGuid);
+    ObjectGuid playerObjectGuid = TC9PlayerGuidFromRawDB(playerGuid);
     Player* player = ObjectAccessor::FindPlayer(playerObjectGuid);
     if (!player)
     {
@@ -243,7 +239,7 @@ GetMoneyForPlayerResponse ToCloud9GrpcHandler::GetMoneyForPlayer(uint64 playerGu
 
 ModifyMoneyForPlayerResponse ToCloud9GrpcHandler::ModifyMoneyForPlayer(uint64 playerGuid, int32 value)
 {
-    Player* player = ObjectAccessor::FindPlayer(TC9PlayerGuid(playerGuid));
+    Player* player = ObjectAccessor::FindPlayer(TC9PlayerGuidFromRawDB(playerGuid));
     if (!player)
     {
         ModifyMoneyForPlayerResponse resp{};
@@ -272,7 +268,7 @@ ModifyMoneyForPlayerResponse ToCloud9GrpcHandler::ModifyMoneyForPlayer(uint64 pl
 
 CanPlayerInteractWithGOAndTypeResponse ToCloud9GrpcHandler::CanPlayerInteractWithGOAndType(uint64 playerGuid, uint64 go, uint8 goType)
 {
-    ObjectGuid playerObjectGuid = TC9PlayerGuid(playerGuid);
+    ObjectGuid playerObjectGuid = TC9PlayerGuidFromRawDB(playerGuid);
     Player* player = ObjectAccessor::FindPlayer(playerObjectGuid);
     if (!player)
     {
@@ -289,7 +285,7 @@ CanPlayerInteractWithGOAndTypeResponse ToCloud9GrpcHandler::CanPlayerInteractWit
 
 CanPlayerInteractWithNPCAndFlagsResponse ToCloud9GrpcHandler::CanPlayerInteractWithNPCAndFlags(uint64 playerGuid, uint64 npc, uint32 unitFlags)
 {
-    ObjectGuid playerObjectGuid = TC9PlayerGuid(playerGuid);
+    ObjectGuid playerObjectGuid = TC9PlayerGuidFromRawDB(playerGuid);
     Player* player = ObjectAccessor::FindPlayer(playerObjectGuid);
     if (!player)
     {
@@ -352,7 +348,7 @@ BattlegroundErrorCode ToCloud9GrpcHandler::AddPlayersToBattleground(Battleground
 
     auto addPlayer = [&](uint64 rawGuid, bool randomBg)
     {
-        Player* player = ObjectAccessor::FindPlayer(TC9PlayerGuid(rawGuid));
+        Player* player = ObjectAccessor::FindPlayer(TC9PlayerGuidFromRawDB(rawGuid));
         if (!player)
             return;
 
@@ -383,7 +379,7 @@ BattlegroundErrorCode ToCloud9GrpcHandler::AddPlayersToBattleground(Battleground
 
 BattlegroundJoinCheckErrorCode ToCloud9GrpcHandler::CanPlayerJoinBattlegroundQueue(uint64 playerGuid)
 {
-    ObjectGuid playerObjectGuid = TC9PlayerGuid(playerGuid);
+    ObjectGuid playerObjectGuid = TC9PlayerGuidFromRawDB(playerGuid);
     Player* player = ObjectAccessor::FindPlayer(playerObjectGuid);
     if (!player)
         return BattlegroundJoinCheckErrorCodePlayerNotFound;
@@ -401,7 +397,7 @@ BattlegroundJoinCheckErrorCode ToCloud9GrpcHandler::CanPlayerJoinBattlegroundQue
 
 BattlegroundJoinCheckErrorCode ToCloud9GrpcHandler::CanPlayerTeleportToBattleground(uint64 playerGuid)
 {
-    ObjectGuid playerObjectGuid = TC9PlayerGuid(playerGuid);
+    ObjectGuid playerObjectGuid = TC9PlayerGuidFromRawDB(playerGuid);
     Player* player = ObjectAccessor::FindPlayer(playerObjectGuid);
     if (!player)
         return BattlegroundJoinCheckErrorCodePlayerNotFound;
@@ -424,7 +420,7 @@ GuildCreateResponse ToCloud9GrpcHandler::CreateGuild(GuildCreateRequest* request
         return response;
     }
 
-    Player* leader = ObjectAccessor::FindConnectedPlayer(TC9PlayerGuid(request->leaderGuid));
+    Player* leader = ObjectAccessor::FindConnectedPlayer(TC9PlayerGuidFromRawDB(request->leaderGuid));
     if (!leader)
     {
         response.errorCode = GuildCreateErrorCodeLeaderNotFound;

@@ -26,6 +26,7 @@
 #include "MapMgr.h"
 #include "Player.h"
 #include "TC9GroupHooks.h"
+#include "TC9Guid.h"
 #include "TC9GrpcHandler.h"
 #include "TC9GuildHooks.h"
 #include "UpdateTime.h"
@@ -229,7 +230,7 @@ bool ToCloud9Sidecar::SetGroupMemberFlags(uint64 updaterGuid, uint64 memberGuid,
 #endif
 }
 
-void ToCloud9Sidecar::UpdateGroupMemberState(Player* player, bool online)
+void ToCloud9Sidecar::UpdateGroupMemberState(Player* player, bool online, bool force)
 {
     if (!_clusterModeEnabled || !player)
         return;
@@ -258,7 +259,7 @@ void ToCloud9Sidecar::UpdateGroupMemberState(Player* player, bool online)
     Powers powerType = player->getPowerType();
 
     GroupMemberStateSnapshot snapshot;
-    snapshot.memberGuid = player->GetGUID().GetDBValue();
+    snapshot.memberGuid = TC9PlayerRawDBGuid(player->GetGUID());
     snapshot.online = online ? 1 : 0;
     snapshot.level = player->GetLevel();
     snapshot.playerClass = player->getClass();
@@ -286,7 +287,7 @@ void ToCloud9Sidecar::UpdateGroupMemberState(Player* player, bool online)
         snapshot.maxPower,
         _pendingGroupMemberStates.size());
 
-    if (!online)
+    if (force || !online)
         FlushGroupMemberStateUpdates(true);
 }
 
@@ -330,10 +331,10 @@ bool ToCloud9Sidecar::StartGroupReadyCheck(Group* group, ObjectGuid leaderGuid, 
     if (!_clusterModeEnabled || !group || group->isBGGroup() || group->isBFGroup())
         return false;
 
-    TC9StartReadyCheck(group->GetGUID().GetCounter(), leaderGuid.GetDBValue(), durationMs);
+    TC9StartReadyCheck(group->GetGUID().GetCounter(), TC9PlayerRawDBGuid(leaderGuid), durationMs);
 
     LOG_DEBUG("server", "TC9 published group ready check started: group={}, leader={}, durationMs={}",
-        group->GetGUID().GetCounter(), leaderGuid.GetDBValue(), durationMs);
+        group->GetGUID().GetCounter(), TC9PlayerRawDBGuid(leaderGuid), durationMs);
 
     return true;
 }
@@ -343,22 +344,22 @@ bool ToCloud9Sidecar::SetReadyCheckMemberState(Group* group, ObjectGuid memberGu
     if (!_clusterModeEnabled || !group || group->isBGGroup() || group->isBFGroup())
         return false;
 
-    TC9SetReadyCheckMemberState(group->GetGUID().GetCounter(), memberGuid.GetDBValue(), state);
+    TC9SetReadyCheckMemberState(group->GetGUID().GetCounter(), TC9PlayerRawDBGuid(memberGuid), state);
 
     LOG_DEBUG("server", "TC9 published group ready check member state: group={}, member={}, state={}",
-        group->GetGUID().GetCounter(), memberGuid.GetDBValue(), uint32(state));
+        group->GetGUID().GetCounter(), TC9PlayerRawDBGuid(memberGuid), uint32(state));
 
     return true;
 }
 
-bool ToCloud9Sidecar::FinishGroupReadyCheck(Group* group)
+bool ToCloud9Sidecar::FinishGroupReadyCheck(Group* group, ObjectGuid playerGuid)
 {
     if (!_clusterModeEnabled || !group || group->isBGGroup() || group->isBFGroup())
         return false;
 
-    TC9FinishReadyCheck(group->GetGUID().GetCounter());
+    TC9FinishReadyCheck(TC9PlayerRawDBGuid(playerGuid));
 
-    LOG_DEBUG("server", "TC9 published group ready check finished: group={}", group->GetGUID().GetCounter());
+    LOG_DEBUG("server", "TC9 published group ready check finished: group={}, player={}", group->GetGUID().GetCounter(), TC9PlayerRawDBGuid(playerGuid));
 
     return true;
 }

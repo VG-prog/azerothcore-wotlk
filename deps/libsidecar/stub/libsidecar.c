@@ -46,7 +46,7 @@ void TC9SetOnGroupRaidDifficultyChangedHook(OnGroupRaidDifficultyChangedHook h) 
 void TC9SetOnGroupConvertedToRaidHook(OnGroupConvertedToRaidHook h) { panicWithTC9Unavailable("TC9SetOnGroupConvertedToRaidHook"); }
 
 void TC9UpdateGroupMemberState(
-    uint64_t memberGuid,
+    TC9RawPlayerGuid memberGuid,
     uint8_t online,
     uint8_t level,
     uint8_t playerClass,
@@ -62,11 +62,11 @@ void TC9UpdateGroupMemberState(
     panicWithTC9Unavailable("TC9UpdateGroupMemberState");
 }
 
-void TC9StartReadyCheck(uint32_t groupGuid, uint64_t leaderGuid, uint32_t durationMs) { panicWithTC9Unavailable("TC9StartReadyCheck"); }
+void TC9StartReadyCheck(TC9RawGroupGuid groupGuid, TC9RawPlayerGuid leaderGuid, uint32_t durationMs) { panicWithTC9Unavailable("TC9StartReadyCheck"); }
 
-void TC9SetReadyCheckMemberState(uint32_t groupGuid, uint64_t memberGuid, uint8_t state) { panicWithTC9Unavailable("TC9SetReadyCheckMemberState"); }
+void TC9SetReadyCheckMemberState(TC9RawGroupGuid groupGuid, TC9RawPlayerGuid memberGuid, uint8_t state) { panicWithTC9Unavailable("TC9SetReadyCheckMemberState"); }
 
-void TC9FinishReadyCheck(uint32_t groupGuid) { panicWithTC9Unavailable("TC9FinishReadyCheck"); }
+void TC9FinishReadyCheck(TC9RawGroupGuid groupGuid) { panicWithTC9Unavailable("TC9FinishReadyCheck"); }
 
 void TC9SetGuildCreateHandler(GuildCreateHandler h) { panicWithTC9Unavailable("TC9SetGuildCreateHandler"); }
 
