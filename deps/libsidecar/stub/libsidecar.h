@@ -210,6 +210,9 @@ extern void TC9UpdateGroupMemberState(
     uint32_t power,
     uint32_t maxPower
 );
+extern void TC9StartReadyCheck(uint32_t groupGuid, uint64_t leaderGuid, uint32_t durationMs);
+extern void TC9SetReadyCheckMemberState(uint32_t groupGuid, uint64_t memberGuid, uint8_t state);
+extern void TC9FinishReadyCheck(uint32_t groupGuid);
 
 // TC9SetOnGuildMemberAddedHook sets hook for guild member added event.
 //

@@ -38,6 +38,11 @@ MonitoringDataCollectorResponse HandleMonitoringRequest();
 namespace
 {
     constexpr uint64 GROUP_MEMBER_STATE_FLUSH_INTERVAL_MS = 5000;
+
+#if defined(__GNUC__) || defined(__clang__)
+    extern "C" void TC9ChangeMemberSubGroup(uint64_t updaterGuid, uint64_t memberGuid, uint8_t subGroup) __attribute__((weak));
+    extern "C" void TC9SetMemberFlags(uint64_t updaterGuid, uint64_t memberGuid, uint8_t flags, uint8_t roles) __attribute__((weak));
+#endif
 }
 
 ToCloud9Sidecar* ToCloud9Sidecar::instance()
@@ -180,6 +185,50 @@ uint32 ToCloud9Sidecar::GenerateInstanceGuid(uint16 realmId)
     return uint32(TC9GetNextAvailableInstanceGuid(realmId));
 }
 
+bool ToCloud9Sidecar::ChangeGroupMemberSubGroup(uint64 updaterGuid, uint64 memberGuid, uint8 subGroup)
+{
+    if (!_clusterModeEnabled || !updaterGuid || !memberGuid || subGroup >= MAX_RAID_SUBGROUPS)
+        return false;
+
+#if defined(__GNUC__) || defined(__clang__)
+    if (!TC9ChangeMemberSubGroup)
+    {
+        LOG_WARN("server", "Cluster subgroup change requested but TC9ChangeMemberSubGroup is unavailable; applying local fallback. Updater: {}; Member: {}; SubGroup: {}.",
+                 updaterGuid, memberGuid, subGroup);
+        return false;
+    }
+
+    TC9ChangeMemberSubGroup(updaterGuid, memberGuid, subGroup);
+    return true;
+#else
+    LOG_WARN("server", "Cluster subgroup change requested but optional TC9ChangeMemberSubGroup lookup is unsupported by this compiler; applying local fallback. Updater: {}; Member: {}; SubGroup: {}.",
+             updaterGuid, memberGuid, subGroup);
+    return false;
+#endif
+}
+
+bool ToCloud9Sidecar::SetGroupMemberFlags(uint64 updaterGuid, uint64 memberGuid, uint8 flags, uint8 roles)
+{
+    if (!_clusterModeEnabled || !updaterGuid || !memberGuid)
+        return false;
+
+#if defined(__GNUC__) || defined(__clang__)
+    if (!TC9SetMemberFlags)
+    {
+        LOG_WARN("server", "Cluster group member flags change requested but TC9SetMemberFlags is unavailable; applying local fallback. Updater: {}; Member: {}; Flags: {}; Roles: {}.",
+                 updaterGuid, memberGuid, uint32(flags), uint32(roles));
+        return false;
+    }
+
+    TC9SetMemberFlags(updaterGuid, memberGuid, flags, roles);
+    return true;
+#else
+    LOG_WARN("server", "Cluster group member flags change requested but optional TC9SetMemberFlags lookup is unsupported by this compiler; applying local fallback. Updater: {}; Member: {}; Flags: {}; Roles: {}.",
+             updaterGuid, memberGuid, uint32(flags), uint32(roles));
+    return false;
+#endif
+}
+
 void ToCloud9Sidecar::UpdateGroupMemberState(Player* player, bool online)
 {
     if (!_clusterModeEnabled || !player)
@@ -274,6 +323,44 @@ void ToCloud9Sidecar::FlushGroupMemberStateUpdates(bool force)
     _lastGroupMemberStateFlushMs = now;
 
     LOG_DEBUG("server", "TC9 flushed group member state batch: count={}", count);
+}
+
+bool ToCloud9Sidecar::StartGroupReadyCheck(Group* group, ObjectGuid leaderGuid, uint32 durationMs)
+{
+    if (!_clusterModeEnabled || !group || group->isBGGroup() || group->isBFGroup())
+        return false;
+
+    TC9StartReadyCheck(group->GetGUID().GetCounter(), leaderGuid.GetDBValue(), durationMs);
+
+    LOG_DEBUG("server", "TC9 published group ready check started: group={}, leader={}, durationMs={}",
+        group->GetGUID().GetCounter(), leaderGuid.GetDBValue(), durationMs);
+
+    return true;
+}
+
+bool ToCloud9Sidecar::SetReadyCheckMemberState(Group* group, ObjectGuid memberGuid, uint8 state)
+{
+    if (!_clusterModeEnabled || !group || group->isBGGroup() || group->isBFGroup())
+        return false;
+
+    TC9SetReadyCheckMemberState(group->GetGUID().GetCounter(), memberGuid.GetDBValue(), state);
+
+    LOG_DEBUG("server", "TC9 published group ready check member state: group={}, member={}, state={}",
+        group->GetGUID().GetCounter(), memberGuid.GetDBValue(), uint32(state));
+
+    return true;
+}
+
+bool ToCloud9Sidecar::FinishGroupReadyCheck(Group* group)
+{
+    if (!_clusterModeEnabled || !group || group->isBGGroup() || group->isBFGroup())
+        return false;
+
+    TC9FinishReadyCheck(group->GetGUID().GetCounter());
+
+    LOG_DEBUG("server", "TC9 published group ready check finished: group={}", group->GetGUID().GetCounter());
+
+    return true;
 }
 
 void ToCloud9Sidecar::OnPlayerLeftBattleground(uint64 playerGUID, uint32 realmID, uint32 instanceID)

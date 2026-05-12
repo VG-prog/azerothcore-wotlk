@@ -31,6 +31,7 @@
 #include "ScriptMgr.h"
 #include "SocialMgr.h"
 #include "SpellAuras.h"
+#include "TC9Sidecar.h"
 #include "Util.h"
 #include "Vehicle.h"
 #include "World.h"
@@ -38,6 +39,41 @@
 #include "WorldSession.h"
 
 class Aura;
+
+namespace
+{
+    bool GetMemberFlagsAndRoles(Group const* group, ObjectGuid memberGuid, uint8& flags, uint8& roles)
+    {
+        for (Group::MemberSlot const& member : group->GetMemberSlots())
+        {
+            if (member.guid != memberGuid)
+                continue;
+
+            flags = member.flags;
+            roles = member.roles;
+            return true;
+        }
+
+        return false;
+    }
+
+    bool PublishClusterMemberFlagChange(Group* group, ObjectGuid updaterGuid, ObjectGuid memberGuid, bool apply, GroupMemberFlags flag)
+    {
+        uint8 flags = 0;
+        uint8 roles = 0;
+        if (!GetMemberFlagsAndRoles(group, memberGuid, flags, roles))
+            return false;
+
+        if (apply)
+            flags |= flag;
+        else
+            flags &= ~flag;
+
+        return sToCloud9Sidecar->SetGroupMemberFlags(updaterGuid.GetDBValue(), memberGuid.GetDBValue(), flags, roles);
+    }
+
+    constexpr uint32 CLUSTER_READY_CHECK_DURATION_MS = 35000;
+}
 
 /* differeces from off:
     -you can uninvite yourself - is is useful
@@ -642,6 +678,9 @@ void WorldSession::HandleGroupChangeSubGroupOpcode(WorldPacket& recvData)
         guid = sCharacterCache->GetCharacterGuidByName(name);
     }
 
+    if (sToCloud9Sidecar->ChangeGroupMemberSubGroup(senderGuid.GetDBValue(), guid.GetDBValue(), groupNr))
+        return;
+
     group->ChangeMembersGroup(guid, groupNr);
 }
 
@@ -651,13 +690,17 @@ void WorldSession::HandleGroupAssistantLeaderOpcode(WorldPacket& recvData)
     if (!group)
         return;
 
-    if (!group->IsLeader(GetPlayer()->GetGUID()))
+    ObjectGuid senderGuid = GetPlayer()->GetGUID();
+    if (!group->IsLeader(senderGuid))
         return;
 
     ObjectGuid guid;
     bool apply;
     recvData >> guid;
     recvData >> apply;
+
+    if (PublishClusterMemberFlagChange(group, senderGuid, guid, apply, MEMBER_FLAG_ASSISTANT))
+        return;
 
     group->SetGroupMemberFlag(guid, apply, MEMBER_FLAG_ASSISTANT);
 }
@@ -681,12 +724,19 @@ void WorldSession::HandlePartyAssignmentOpcode(WorldPacket& recvData)
     switch (assignment)
     {
         case GROUP_ASSIGN_MAINASSIST:
+            if (PublishClusterMemberFlagChange(group, senderGuid, guid, apply, MEMBER_FLAG_MAINASSIST))
+                return;
+
             group->RemoveUniqueGroupMemberFlag(MEMBER_FLAG_MAINASSIST);
             group->SetGroupMemberFlag(guid, apply, MEMBER_FLAG_MAINASSIST);
             break;
         case GROUP_ASSIGN_MAINTANK:
+            if (PublishClusterMemberFlagChange(group, senderGuid, guid, apply, MEMBER_FLAG_MAINTANK))
+                return;
+
             group->RemoveUniqueGroupMemberFlag(MEMBER_FLAG_MAINTANK);           // Remove main assist flag from current if any.
             group->SetGroupMemberFlag(guid, apply, MEMBER_FLAG_MAINTANK);
+            break;
         default:
             break;
     }
@@ -716,6 +766,9 @@ void WorldSession::HandleRaidReadyCheckOpcode(WorldPacket& recvData)
             }
         }
 
+        if (sToCloud9Sidecar->StartGroupReadyCheck(group, GetPlayer()->GetGUID(), CLUSTER_READY_CHECK_DURATION_MS))
+            return;
+
         // everything's fine, do it
         WorldPacket data(MSG_RAID_READY_CHECK, 8);
         data << GetPlayer()->GetGUID();
@@ -727,6 +780,9 @@ void WorldSession::HandleRaidReadyCheckOpcode(WorldPacket& recvData)
     {
         uint8 state;
         recvData >> state;
+
+        if (sToCloud9Sidecar->SetReadyCheckMemberState(group, GetPlayer()->GetGUID(), state ? 1 : 2))
+            return;
 
         // everything's fine, do it
         WorldPacket data(MSG_RAID_READY_CHECK_CONFIRM, 9);
@@ -743,6 +799,9 @@ void WorldSession::HandleRaidReadyCheckFinishedOpcode(WorldPacket& /*recvData*/)
         return;
 
     if (!group->IsLeader(GetPlayer()->GetGUID()) && !group->IsAssistant(GetPlayer()->GetGUID()))
+        return;
+
+    if (sToCloud9Sidecar->FinishGroupReadyCheck(group))
         return;
 
     WorldPacket data(MSG_RAID_READY_CHECK_FINISHED);
@@ -1179,6 +1238,13 @@ void WorldSession::HandleGroupSwapSubGroupOpcode(WorldPacket& recv_data)
     {
         return;
     }
+
+    ObjectGuid senderGuid = GetPlayer()->GetGUID();
+    bool clusterFirstPublished = sToCloud9Sidecar->ChangeGroupMemberSubGroup(senderGuid.GetDBValue(), guid1.GetDBValue(), groupId2);
+    bool clusterSecondPublished = sToCloud9Sidecar->ChangeGroupMemberSubGroup(senderGuid.GetDBValue(), guid2.GetDBValue(), groupId1);
+
+    if (clusterFirstPublished && clusterSecondPublished)
+        return;
 
     group->ChangeMembersGroup(guid1, groupId2);
     group->ChangeMembersGroup(guid2, groupId1);
