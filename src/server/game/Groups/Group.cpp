@@ -2611,6 +2611,24 @@ bool Group::IsAssistant(ObjectGuid guid) const
     return mslot->flags & MEMBER_FLAG_ASSISTANT;
 }
 
+uint8 Group::GetMemberFlags(ObjectGuid guid) const
+{
+    member_citerator mslot = _getMemberCSlot(guid);
+    if (mslot == m_memberSlots.end())
+        return 0;
+
+    return mslot->flags;
+}
+
+uint8 Group::GetMemberRoles(ObjectGuid guid) const
+{
+    member_citerator mslot = _getMemberCSlot(guid);
+    if (mslot == m_memberSlots.end())
+        return 0;
+
+    return mslot->roles;
+}
+
 bool Group::SameSubGroup(ObjectGuid guid1, ObjectGuid guid2) const
 {
     member_citerator mslot2 = _getMemberCSlot(guid2);
@@ -2980,16 +2998,11 @@ void Group::SendClusterReadyCheckStarted(ObjectGuid leaderGuid, uint32 /*duratio
 
 void Group::SendClusterReadyCheckMemberState(ObjectGuid memberGuid, uint8 state)
 {
-    if (state == 0)
-        return;
-
     WorldPacket data(MSG_RAID_READY_CHECK_CONFIRM, 9);
     data << memberGuid;
     data << uint8(state == 1 ? 1 : 0);
 
-    for (MemberSlot const& member : m_memberSlots)
-        if (Player* player = ObjectAccessor::FindConnectedPlayer(member.guid))
-            player->GetSession()->SendPacket(&data);
+    BroadcastReadyCheck(&data);
 }
 
 void Group::SendClusterReadyCheckFinished()

@@ -210,9 +210,11 @@ extern void TC9UpdateGroupMemberState(
     uint32_t power,
     uint32_t maxPower
 );
-extern void TC9StartReadyCheck(TC9RawGroupGuid groupGuid, TC9RawPlayerGuid leaderGuid, uint32_t durationMs);
-extern void TC9SetReadyCheckMemberState(TC9RawGroupGuid groupGuid, TC9RawPlayerGuid memberGuid, uint8_t state);
-extern void TC9FinishReadyCheck(TC9RawGroupGuid groupGuid);
+extern void TC9StartGroupReadyCheck(uint64_t leaderGuid, uint32_t durationMs);
+extern void TC9SetGroupReadyCheckMemberState(uint64_t memberGuid, uint8_t state);
+extern void TC9FinishGroupReadyCheck(uint64_t playerGuid);
+extern void TC9ChangeGroupMemberSubGroup(uint64_t updaterGuid, uint64_t memberGuid, uint8_t subGroup);
+extern void TC9SetGroupMemberFlags(uint64_t updaterGuid, uint64_t memberGuid, uint8_t flags, uint8_t roles);
 
 // TC9SetOnGuildMemberAddedHook sets hook for guild member added event.
 //

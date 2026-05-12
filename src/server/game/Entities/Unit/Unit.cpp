@@ -6995,8 +6995,6 @@ void Unit::SendAttackStateUpdate(uint32 HitInfo, Unit* target, uint8 /*SwingType
 
 void Unit::setPowerType(Powers new_powertype)
 {
-    Powers oldPowerType = getPowerType();
-
     SetByteValue(UNIT_FIELD_BYTES_0, 3, new_powertype);
 
     if (IsPlayer())
@@ -7004,9 +7002,6 @@ void Unit::setPowerType(Powers new_powertype)
         Player* player = ToPlayer();
         if (player->GetGroup())
             player->SetGroupUpdateFlag(GROUP_UPDATE_FLAG_POWER_TYPE);
-
-        if (sToCloud9Sidecar->ClusterModeEnabled() && oldPowerType != new_powertype)
-            sToCloud9Sidecar->UpdateGroupMemberState(player, true);
     }
     else if (Pet* pet = ToCreature()->ToPet())
     {
@@ -12339,20 +12334,11 @@ void Unit::SetLevel(uint8 lvl, bool showLevelChange)
         ToPlayer()->SetGroupUpdateFlag(GROUP_UPDATE_FLAG_LEVEL);
 
     if (IsPlayer())
-    {
-        Player* player = ToPlayer();
-
         sCharacterCache->UpdateCharacterLevel(GetGUID(), lvl);
-
-        if (sToCloud9Sidecar->ClusterModeEnabled())
-            sToCloud9Sidecar->UpdateGroupMemberState(player, true);
-    }
 }
 
 void Unit::SetHealth(uint32 val)
 {
-    uint32 oldHealth = GetHealth();
-
     if (getDeathState() == DeathState::JustDied)
         val = 0;
     else if (IsPlayer() && getDeathState() == DeathState::Dead)
@@ -12383,9 +12369,6 @@ void Unit::SetHealth(uint32 val)
 
         if (player->GetGroup())
             player->SetGroupUpdateFlag(GROUP_UPDATE_FLAG_CUR_HP);
-
-        if (sToCloud9Sidecar->ClusterModeEnabled() && oldHealth != GetHealth())
-            sToCloud9Sidecar->UpdateGroupMemberState(player, true);
     }
     else if (Pet* pet = ToCreature()->ToPet())
     {
@@ -12406,8 +12389,6 @@ void Unit::SetHealth(uint32 val)
 
 void Unit::SetMaxHealth(uint32 val)
 {
-    uint32 oldMaxHealth = GetMaxHealth();
-
     if (!val)
         val = 1;
 
@@ -12423,9 +12404,6 @@ void Unit::SetMaxHealth(uint32 val)
 
         if (player->GetGroup())
             player->SetGroupUpdateFlag(GROUP_UPDATE_FLAG_MAX_HP);
-
-        if (sToCloud9Sidecar->ClusterModeEnabled() && oldMaxHealth != GetMaxHealth())
-            sToCloud9Sidecar->UpdateGroupMemberState(ToPlayer(), true);
     }
     else if (Pet* pet = ToCreature()->ToPet())
     {
@@ -12484,9 +12462,6 @@ void Unit::SetPower(Powers power, uint32 val, bool withPowerUpdate /*= true*/, b
 
         if (player->GetGroup())
             player->SetGroupUpdateFlag(GROUP_UPDATE_FLAG_CUR_POWER);
-
-        if (sToCloud9Sidecar->ClusterModeEnabled() && player->getPowerType() == power && oldPower != GetPower(power))
-            sToCloud9Sidecar->UpdateGroupMemberState(player, true);
     }
     else if (Pet* pet = ToCreature()->ToPet())
     {
@@ -12505,7 +12480,6 @@ void Unit::SetPower(Powers power, uint32 val, bool withPowerUpdate /*= true*/, b
 
 void Unit::SetMaxPower(Powers power, uint32 val)
 {
-    uint32 oldMaxPower = GetMaxPower(power);
     uint32 cur_power = GetPower(power);
     SetStatInt32Value(static_cast<uint16>(UNIT_FIELD_MAXPOWER1) + power, val);
 
@@ -12518,9 +12492,6 @@ void Unit::SetMaxPower(Powers power, uint32 val)
 
         if (player->GetGroup())
             player->SetGroupUpdateFlag(GROUP_UPDATE_FLAG_MAX_POWER);
-
-        if (sToCloud9Sidecar->ClusterModeEnabled() && ToPlayer()->getPowerType() == power && oldMaxPower != GetMaxPower(power))
-            sToCloud9Sidecar->UpdateGroupMemberState(ToPlayer(), true);
     }
     else if (Pet* pet = ToCreature()->ToPet())
     {

@@ -4,25 +4,22 @@
 #include <stdint.h>
 #include <stdlib.h>
 
-typedef uint32_t TC9RawGroupGuid;
-typedef uint64_t TC9RawPlayerGuid;
-
 enum GroupStatus {
     GroupHookStatusOK = 0,
     GroupHookStatusNoHook = 1
 };
 
 typedef struct {
-    TC9RawGroupGuid guid;
-    TC9RawPlayerGuid leader;
+    uint32_t guid;
+    uint64_t leader;
     uint8_t lootMethod;
-    TC9RawPlayerGuid looterGuid;
+    uint64_t looterGuid;
     uint8_t lootThreshold;
     uint8_t groupType;
     uint8_t difficulty;
     uint8_t raidDifficulty;
-    TC9RawPlayerGuid masterLooterGuid;
-    TC9RawPlayerGuid *members;
+    uint64_t masterLooterGuid;
+    uint64_t *members;
     uint8_t membersSize;
 } EventObjectGroup;
 
@@ -30,67 +27,67 @@ typedef void (*OnGroupCreatedHook) (EventObjectGroup *group);
 void SetOnGroupCreatedHook(OnGroupCreatedHook h);
 int CallOnGroupCreatedHook(EventObjectGroup *group);
 
-typedef void (*OnGroupMemberAddedHook) (TC9RawGroupGuid guid, TC9RawPlayerGuid newMemberGuid);
+typedef void (*OnGroupMemberAddedHook) (uint32_t guid, uint64_t newMemberGuid);
 void SetOnGroupMemberAddedHook(OnGroupMemberAddedHook h);
-int CallOnGroupMemberAddedHook(TC9RawGroupGuid guid, TC9RawPlayerGuid newMemberGuid);
+int CallOnGroupMemberAddedHook(uint32_t guid, uint64_t newMemberGuid);
 
-typedef void (*OnGroupMemberRemovedHook) (TC9RawGroupGuid guid, TC9RawPlayerGuid removedMemberGuid, TC9RawPlayerGuid newLeaderGuid);
+typedef void (*OnGroupMemberRemovedHook) (uint32_t guid, uint64_t removedMemberGuid, uint64_t newLeaderGuid);
 void SetOnGroupMemberRemovedHook(OnGroupMemberRemovedHook h);
-int CallOnGroupMemberRemovedHook(TC9RawGroupGuid guid, TC9RawPlayerGuid removedMemberGuid, TC9RawPlayerGuid newLeaderGuid);
+int CallOnGroupMemberRemovedHook(uint32_t guid, uint64_t removedMemberGuid, uint64_t newLeaderGuid);
 
-typedef void (*OnGroupDisbandedHook) (TC9RawGroupGuid guid);
+typedef void (*OnGroupDisbandedHook) (uint32_t guid);
 void SetOnGroupDisbandedHook(OnGroupDisbandedHook h);
-int CallOnGroupDisbandedHook(TC9RawGroupGuid guid);
+int CallOnGroupDisbandedHook(uint32_t guid);
 
-typedef void (*OnGroupLootTypeChangedHook) (TC9RawGroupGuid guid, uint8_t lootMethod, TC9RawPlayerGuid looter, uint8_t lootThreshold);
+typedef void (*OnGroupLootTypeChangedHook) (uint32_t guid, uint8_t lootMethod, uint64_t looter, uint8_t lootThreshold);
 void SetOnGroupLootTypeChangedHook(OnGroupLootTypeChangedHook h);
-int CallOnGroupLootTypeChangedHook(TC9RawGroupGuid guid, uint8_t lootMethod, TC9RawPlayerGuid looter, uint8_t lootThreshold);
+int CallOnGroupLootTypeChangedHook(uint32_t guid, uint8_t lootMethod, uint64_t looter, uint8_t lootThreshold);
 
-typedef void (*OnGroupDungeonDifficultyChangedHook) (TC9RawGroupGuid guid, uint8_t difficulty);
+typedef void (*OnGroupDungeonDifficultyChangedHook) (uint32_t guid, uint8_t difficulty);
 void SetOnGroupDungeonDifficultyChangedHook(OnGroupDungeonDifficultyChangedHook h);
-int CallOnGroupDungeonDifficultyChangedHook(TC9RawGroupGuid guid, uint8_t difficulty);
+int CallOnGroupDungeonDifficultyChangedHook(uint32_t guid, uint8_t difficulty);
 
-typedef void (*OnGroupRaidDifficultyChangedHook) (TC9RawGroupGuid guid, uint8_t difficulty);
+typedef void (*OnGroupRaidDifficultyChangedHook) (uint32_t guid, uint8_t difficulty);
 void SetOnGroupRaidDifficultyChangedHook(OnGroupRaidDifficultyChangedHook h);
-int CallOnGroupRaidDifficultyChangedHook(TC9RawGroupGuid guid, uint8_t difficulty);
+int CallOnGroupRaidDifficultyChangedHook(uint32_t guid, uint8_t difficulty);
 
-typedef void (*OnGroupConvertedToRaidHook) (TC9RawGroupGuid guid);
+typedef void (*OnGroupConvertedToRaidHook) (uint32_t guid);
 void SetOnGroupConvertedToRaidHook(OnGroupConvertedToRaidHook h);
-int CallOnGroupConvertedToRaidHook(TC9RawGroupGuid guid);
+int CallOnGroupConvertedToRaidHook(uint32_t guid);
 
 
 typedef struct {
-    TC9RawGroupGuid groupGuid;
-    TC9RawPlayerGuid leaderGuid;
+    uint32_t groupGuid;
+    uint64_t leaderGuid;
     uint32_t durationMs;
 } GroupReadyCheckStarted;
 
 typedef struct {
-    TC9RawGroupGuid groupGuid;
-    TC9RawPlayerGuid memberGuid;
+    uint32_t groupGuid;
+    uint64_t memberGuid;
     uint8_t state; // 0 = waiting, 1 = ready, 2 = not ready
 } GroupReadyCheckMemberState;
 
 typedef struct {
-    TC9RawGroupGuid groupGuid;
+    uint32_t groupGuid;
 } GroupReadyCheckFinished;
 
 typedef struct {
-    TC9RawGroupGuid groupGuid;
-    TC9RawPlayerGuid memberGuid;
+    uint32_t groupGuid;
+    uint64_t memberGuid;
     uint8_t subGroup;
 } GroupMemberSubGroupChanged;
 
 typedef struct {
-    TC9RawGroupGuid groupGuid;
-    TC9RawPlayerGuid memberGuid;
+    uint32_t groupGuid;
+    uint64_t memberGuid;
     uint8_t flags;
     uint8_t roles;
 } GroupMemberFlagsChanged;
 
 typedef struct {
-    TC9RawGroupGuid groupGuid;
-    TC9RawPlayerGuid memberGuid;
+    uint32_t groupGuid;
+    uint64_t memberGuid;
     uint8_t online;
     uint8_t level;
     uint8_t playerClass;
@@ -104,15 +101,15 @@ typedef struct {
 } GroupMemberStateChanged;
 
 typedef struct {
-    TC9RawGroupGuid groupGuid;
-    TC9RawPlayerGuid playerGuid;
+    uint32_t groupGuid;
+    uint64_t playerGuid;
     uint32_t mapId;
     uint8_t difficulty;
 } GroupInstanceResetRequest;
 
 typedef struct {
-    TC9RawGroupGuid groupGuid;
-    TC9RawPlayerGuid playerGuid;
+    uint32_t groupGuid;
+    uint64_t playerGuid;
     uint32_t mapId;
     uint8_t difficulty;
     uint8_t extended;

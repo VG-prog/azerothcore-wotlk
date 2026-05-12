@@ -10,7 +10,14 @@
 #include "GroupMgr.h"
 #include "Log.h"
 #include "Player.h"
-#include "TC9Guid.h"
+
+namespace
+{
+    ObjectGuid TC9PlayerGuid(uint64 value)
+    {
+        return value ? ObjectGuid::CreatePlayerFromDBValue(value) : ObjectGuid::Empty;
+    }
+}
 
 void ToCloud9GroupHooks::OnGroupCreated(EventObjectGroup* group)
 {
@@ -26,13 +33,13 @@ void ToCloud9GroupHooks::OnGroupCreated(EventObjectGroup* group)
 
     Group* g = new Group();
     g->m_guid = ObjectGuid::CreateGroupFromDBValue(group->guid);
-    g->m_leaderGuid = TC9PlayerGuidFromRawDB(group->leader);
+    g->m_leaderGuid = TC9PlayerGuid(group->leader);
     g->m_dungeonDifficulty = Difficulty(group->difficulty);
     g->m_raidDifficulty = Difficulty(group->raidDifficulty);
     g->m_lootMethod = LootMethod(group->lootMethod);
-    g->m_looterGuid = TC9PlayerGuidFromRawDB(group->looterGuid);
+    g->m_looterGuid = TC9PlayerGuid(group->looterGuid);
     g->m_lootThreshold = ItemQualities(group->lootThreshold);
-    g->m_masterLooterGuid = TC9PlayerGuidFromRawDB(group->masterLooterGuid);
+    g->m_masterLooterGuid = TC9PlayerGuid(group->masterLooterGuid);
     g->m_groupType = GroupType(group->groupType);
 
     if (g->m_groupType & GROUPTYPE_RAID)
@@ -44,7 +51,7 @@ void ToCloud9GroupHooks::OnGroupCreated(EventObjectGroup* group)
         sCharacterCache->GetCharacterNameByGuid(g->m_leaderGuid, g->m_leaderName);
 
     for (int i = 0; i < group->membersSize; i++)
-        g->AddMemberWithGuid(TC9PlayerGuidFromRawDB(group->members[i]), false);
+        g->AddMemberWithGuid(TC9PlayerGuid(group->members[i]), false);
 
     sGroupMgr->AddGroup(g);
     g->SendUpdateLocal();
@@ -64,7 +71,7 @@ void ToCloud9GroupHooks::OnGroupMemberAdded(uint32 group, uint64 member)
     LOG_INFO("server", "Group member added. ID: {}; Member: {}.", group, member);
 
     if (Group* g = sGroupMgr->GetGroupByGUID(group))
-        g->AddMemberWithGuid(TC9PlayerGuidFromRawDB(member));
+        g->AddMemberWithGuid(TC9PlayerGuid(member));
 }
 
 void ToCloud9GroupHooks::OnGroupMemberRemoved(uint32 group, uint64 member, uint64 newLeader)
@@ -72,7 +79,7 @@ void ToCloud9GroupHooks::OnGroupMemberRemoved(uint32 group, uint64 member, uint6
     LOG_INFO("server", "Group member removed. ID: {}; Member: {}; NewLeader: {}.", group, member, newLeader);
 
     if (Group* g = sGroupMgr->GetGroupByGUID(group))
-        g->ClusterRemoveMember(TC9PlayerGuidFromRawDB(member), TC9PlayerGuidFromRawDB(newLeader));
+        g->ClusterRemoveMember(TC9PlayerGuid(member), TC9PlayerGuid(newLeader));
 }
 
 void ToCloud9GroupHooks::OnGroupLootTypeChanged(uint32 group, uint8 lootType, uint64 looter, uint8 lootThreshold)
@@ -82,7 +89,7 @@ void ToCloud9GroupHooks::OnGroupLootTypeChanged(uint32 group, uint8 lootType, ui
 
     if (Group* g = sGroupMgr->GetGroupByGUID(group))
     {
-        ObjectGuid looterGuid = TC9PlayerGuidFromRawDB(looter);
+        ObjectGuid looterGuid = TC9PlayerGuid(looter);
 
         g->SetLootMethod((LootMethod)lootType);
         g->SetLooterGuid(looterGuid);
@@ -125,7 +132,7 @@ void ToCloud9GroupHooks::OnGroupReadyCheckStarted(GroupReadyCheckStarted* reques
     if (!group)
         return;
 
-    group->SendClusterReadyCheckStarted(TC9PlayerGuidFromRawDB(request->leaderGuid), request->durationMs);
+    group->SendClusterReadyCheckStarted(TC9PlayerGuid(request->leaderGuid), request->durationMs);
 }
 
 void ToCloud9GroupHooks::OnGroupReadyCheckMemberState(GroupReadyCheckMemberState* request)
@@ -137,7 +144,7 @@ void ToCloud9GroupHooks::OnGroupReadyCheckMemberState(GroupReadyCheckMemberState
     if (!group)
         return;
 
-    group->SendClusterReadyCheckMemberState(TC9PlayerGuidFromRawDB(request->memberGuid), request->state);
+    group->SendClusterReadyCheckMemberState(TC9PlayerGuid(request->memberGuid), request->state);
 }
 
 void ToCloud9GroupHooks::OnGroupReadyCheckFinished(GroupReadyCheckFinished* request)
@@ -161,7 +168,7 @@ void ToCloud9GroupHooks::OnGroupMemberSubGroupChanged(GroupMemberSubGroupChanged
     if (!group)
         return;
 
-    ObjectGuid memberGuid = TC9PlayerGuidFromRawDB(request->memberGuid);
+    ObjectGuid memberGuid = TC9PlayerGuid(request->memberGuid);
     if (!memberGuid)
         return;
 
@@ -180,7 +187,7 @@ void ToCloud9GroupHooks::OnGroupMemberFlagsChanged(GroupMemberFlagsChanged* requ
     if (!group)
         return;
 
-    ObjectGuid memberGuid = TC9PlayerGuidFromRawDB(request->memberGuid);
+    ObjectGuid memberGuid = TC9PlayerGuid(request->memberGuid);
     if (!memberGuid)
         return;
 
@@ -195,7 +202,7 @@ void ToCloud9GroupHooks::OnGroupMemberStateChanged(GroupMemberStateChanged* requ
     if (!request)
         return;
 
-    LOG_INFO("server", "TC9 group member state changed: group={}, member={}, online={}, level={}, class={}, zone={}, map={}, health={}, maxHealth={}, powerType={}, power={}, maxPower={}",
+    LOG_DEBUG("server", "TC9 group member state changed: group={}, member={}, online={}, level={}, class={}, zone={}, map={}, health={}, maxHealth={}, powerType={}, power={}, maxPower={}",
         request->groupGuid,
         request->memberGuid,
         uint32(request->online),
@@ -213,7 +220,7 @@ void ToCloud9GroupHooks::OnGroupMemberStateChanged(GroupMemberStateChanged* requ
     if (!group)
         return;
 
-    ObjectGuid memberGuid = TC9PlayerGuidFromRawDB(request->memberGuid);
+    ObjectGuid memberGuid = TC9PlayerGuid(request->memberGuid);
     if (!memberGuid)
         return;
 
@@ -267,7 +274,7 @@ void ToCloud9GroupHooks::OnGroupInstanceResetRequest(GroupInstanceResetRequest* 
 
     if (request->groupGuid == 0)
     {
-        resetPlayer(ObjectAccessor::FindConnectedPlayer(TC9PlayerGuidFromRawDB(request->playerGuid)));
+        resetPlayer(ObjectAccessor::FindConnectedPlayer(TC9PlayerGuid(request->playerGuid)));
         return;
     }
 
@@ -283,7 +290,7 @@ void ToCloud9GroupHooks::OnGroupInstanceBindExtensionRequest(GroupInstanceBindEx
     if (!request)
         return;
 
-    ObjectGuid playerGuid = TC9PlayerGuidFromRawDB(request->playerGuid);
+    ObjectGuid playerGuid = TC9PlayerGuid(request->playerGuid);
     Difficulty difficulty = Difficulty(request->difficulty);
 
     sInstanceSaveMgr->ClusterSetPlayerBindExtension(

@@ -46,7 +46,7 @@ void TC9SetOnGroupRaidDifficultyChangedHook(OnGroupRaidDifficultyChangedHook h) 
 void TC9SetOnGroupConvertedToRaidHook(OnGroupConvertedToRaidHook h) { panicWithTC9Unavailable("TC9SetOnGroupConvertedToRaidHook"); }
 
 void TC9UpdateGroupMemberState(
-    TC9RawPlayerGuid memberGuid,
+    uint64_t memberGuid,
     uint8_t online,
     uint8_t level,
     uint8_t playerClass,
@@ -61,12 +61,6 @@ void TC9UpdateGroupMemberState(
 {
     panicWithTC9Unavailable("TC9UpdateGroupMemberState");
 }
-
-void TC9StartReadyCheck(TC9RawGroupGuid groupGuid, TC9RawPlayerGuid leaderGuid, uint32_t durationMs) { panicWithTC9Unavailable("TC9StartReadyCheck"); }
-
-void TC9SetReadyCheckMemberState(TC9RawGroupGuid groupGuid, TC9RawPlayerGuid memberGuid, uint8_t state) { panicWithTC9Unavailable("TC9SetReadyCheckMemberState"); }
-
-void TC9FinishReadyCheck(TC9RawGroupGuid groupGuid) { panicWithTC9Unavailable("TC9FinishReadyCheck"); }
 
 void TC9SetGuildCreateHandler(GuildCreateHandler h) { panicWithTC9Unavailable("TC9SetGuildCreateHandler"); }
 
@@ -166,3 +160,8 @@ void TC9SetOnGroupMemberFlagsChangedHook(OnGroupMemberFlagsChangedHook h) { pani
 void TC9SetOnGroupMemberStateChangedHook(OnGroupMemberStateChangedHook h) { panicWithTC9Unavailable("TC9SetOnGroupMemberStateChangedHook"); }
 void TC9SetOnGroupInstanceResetRequestHook(OnGroupInstanceResetRequestHook h) { panicWithTC9Unavailable("TC9SetOnGroupInstanceResetRequestHook"); }
 void TC9SetOnGroupInstanceBindExtensionRequestHook(OnGroupInstanceBindExtensionRequestHook h) { panicWithTC9Unavailable("TC9SetOnGroupInstanceBindExtensionRequestHook"); }
+void TC9StartGroupReadyCheck(uint64_t leaderGuid, uint32_t durationMs) { panicWithTC9Unavailable("TC9StartGroupReadyCheck"); }
+void TC9SetGroupReadyCheckMemberState(uint64_t memberGuid, uint8_t state) { panicWithTC9Unavailable("TC9SetGroupReadyCheckMemberState"); }
+void TC9FinishGroupReadyCheck(uint64_t playerGuid) { panicWithTC9Unavailable("TC9FinishGroupReadyCheck"); }
+void TC9ChangeGroupMemberSubGroup(uint64_t updaterGuid, uint64_t memberGuid, uint8_t subGroup) { panicWithTC9Unavailable("TC9ChangeGroupMemberSubGroup"); }
+void TC9SetGroupMemberFlags(uint64_t updaterGuid, uint64_t memberGuid, uint8_t flags, uint8_t roles) { panicWithTC9Unavailable("TC9SetGroupMemberFlags"); }

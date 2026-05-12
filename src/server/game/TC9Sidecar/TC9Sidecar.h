@@ -21,14 +21,13 @@
 #include "AsyncCallbackProcessor.h"
 #include "AsyncTask.h"
 #include "Common.h"
-#include "ObjectGuid.h"
 #include <unordered_map>
 
 #define MAX_MAP_ID 800 // Probably too much, but let's lean towards caution.
 #define DEFAULT_NON_CROSSREALM_REALM_ID 0
 
-class Group;
 class Player;
+class ObjectGuid;
 
 class ToCloud9Sidecar
 {
@@ -54,13 +53,13 @@ public:
     void ProcessGrpcOrHttpRequests();
     void ProcessAsyncTasks();
 
-    void UpdateGroupMemberState(Player* player, bool online, bool force = false);
+    void UpdateGroupMemberState(Player* player, bool online);
     void FlushGroupMemberStateUpdates(bool force = false);
-    bool StartGroupReadyCheck(Group* group, ObjectGuid leaderGuid, uint32 durationMs);
-    bool SetReadyCheckMemberState(Group* group, ObjectGuid memberGuid, uint8 state);
-    bool FinishGroupReadyCheck(Group* group, ObjectGuid playerGuid);
-    bool ChangeGroupMemberSubGroup(uint64 updaterGuid, uint64 memberGuid, uint8 subGroup);
-    bool SetGroupMemberFlags(uint64 updaterGuid, uint64 memberGuid, uint8 flags, uint8 roles);
+    void StartGroupReadyCheck(Player* leader, uint32 durationMs);
+    void SetGroupReadyCheckMemberState(Player* member, uint8 state);
+    void FinishGroupReadyCheck(Player* player);
+    void ChangeGroupMemberSubGroup(Player* updater, ObjectGuid memberGuid, uint8 subGroup);
+    void SetGroupMemberFlags(Player* updater, ObjectGuid memberGuid, uint8 flags, uint8 roles);
 
     uint64 GenerateCharacterGuid(uint16 realmId = DEFAULT_NON_CROSSREALM_REALM_ID);
     uint64 GenerateItemGuid(uint16 realmId = DEFAULT_NON_CROSSREALM_REALM_ID);
@@ -90,9 +89,25 @@ private:
         uint8 powerType = 0;
         uint32 power = 0;
         uint32 maxPower = 0;
+
+        bool Equals(GroupMemberStateSnapshot const& other) const
+        {
+            return memberGuid == other.memberGuid
+                && online == other.online
+                && level == other.level
+                && playerClass == other.playerClass
+                && zoneId == other.zoneId
+                && mapId == other.mapId
+                && health == other.health
+                && maxHealth == other.maxHealth
+                && powerType == other.powerType
+                && power == other.power
+                && maxPower == other.maxPower;
+        }
     };
 
     std::unordered_map<uint64, GroupMemberStateSnapshot> _pendingGroupMemberStates;
+    std::unordered_map<uint64, GroupMemberStateSnapshot> _lastGroupMemberStates;
     uint64 _lastGroupMemberStateFlushMs = 0;
 
     AsyncCallbackProcessor<AsyncTask<bool>> _asyncTasksProcessor;
