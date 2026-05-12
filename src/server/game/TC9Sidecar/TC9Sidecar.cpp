@@ -41,6 +41,7 @@ namespace
 
 #if defined(__GNUC__) || defined(__clang__)
     extern "C" void TC9ChangeMemberSubGroup(uint64_t updaterGuid, uint64_t memberGuid, uint8_t subGroup) __attribute__((weak));
+    extern "C" void TC9SetMemberFlags(uint64_t updaterGuid, uint64_t memberGuid, uint8_t flags, uint8_t roles) __attribute__((weak));
 #endif
 }
 
@@ -202,6 +203,28 @@ bool ToCloud9Sidecar::ChangeGroupMemberSubGroup(uint64 updaterGuid, uint64 membe
 #else
     LOG_WARN("server", "Cluster subgroup change requested but optional TC9ChangeMemberSubGroup lookup is unsupported by this compiler; applying local fallback. Updater: {}; Member: {}; SubGroup: {}.",
              updaterGuid, memberGuid, subGroup);
+    return false;
+#endif
+}
+
+bool ToCloud9Sidecar::SetGroupMemberFlags(uint64 updaterGuid, uint64 memberGuid, uint8 flags, uint8 roles)
+{
+    if (!_clusterModeEnabled || !updaterGuid || !memberGuid)
+        return false;
+
+#if defined(__GNUC__) || defined(__clang__)
+    if (!TC9SetMemberFlags)
+    {
+        LOG_WARN("server", "Cluster group member flags change requested but TC9SetMemberFlags is unavailable; applying local fallback. Updater: {}; Member: {}; Flags: {}; Roles: {}.",
+                 updaterGuid, memberGuid, uint32(flags), uint32(roles));
+        return false;
+    }
+
+    TC9SetMemberFlags(updaterGuid, memberGuid, flags, roles);
+    return true;
+#else
+    LOG_WARN("server", "Cluster group member flags change requested but optional TC9SetMemberFlags lookup is unsupported by this compiler; applying local fallback. Updater: {}; Member: {}; Flags: {}; Roles: {}.",
+             updaterGuid, memberGuid, uint32(flags), uint32(roles));
     return false;
 #endif
 }

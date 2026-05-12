@@ -60,6 +60,7 @@ public:
     bool SetReadyCheckMemberState(Group* group, ObjectGuid memberGuid, uint8 state);
     bool FinishGroupReadyCheck(Group* group);
     bool ChangeGroupMemberSubGroup(uint64 updaterGuid, uint64 memberGuid, uint8 subGroup);
+    bool SetGroupMemberFlags(uint64 updaterGuid, uint64 memberGuid, uint8 flags, uint8 roles);
 
     uint64 GenerateCharacterGuid(uint16 realmId = DEFAULT_NON_CROSSREALM_REALM_ID);
     uint64 GenerateItemGuid(uint16 realmId = DEFAULT_NON_CROSSREALM_REALM_ID);
