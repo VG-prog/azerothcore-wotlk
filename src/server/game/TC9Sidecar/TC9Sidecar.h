@@ -21,6 +21,7 @@
 #include "AsyncCallbackProcessor.h"
 #include "AsyncTask.h"
 #include "Common.h"
+#include <unordered_map>
 
 #define MAX_MAP_ID 800 // Probably too much, but let's lean towards caution.
 #define DEFAULT_NON_CROSSREALM_REALM_ID 0
@@ -52,6 +53,7 @@ public:
     void ProcessAsyncTasks();
 
     void UpdateGroupMemberState(Player* player, bool online);
+    void FlushGroupMemberStateUpdates(bool force = false);
 
     uint64 GenerateCharacterGuid(uint16 realmId = DEFAULT_NON_CROSSREALM_REALM_ID);
     uint64 GenerateItemGuid(uint16 realmId = DEFAULT_NON_CROSSREALM_REALM_ID);
@@ -67,6 +69,24 @@ private:
     bool _isCrossrealm;
 
     bool _assignedMapsByID[MAX_MAP_ID];
+
+    struct GroupMemberStateSnapshot
+    {
+        uint64 memberGuid = 0;
+        uint8 online = 0;
+        uint8 level = 0;
+        uint8 playerClass = 0;
+        uint32 zoneId = 0;
+        uint32 mapId = 0;
+        uint32 health = 0;
+        uint32 maxHealth = 0;
+        uint8 powerType = 0;
+        uint32 power = 0;
+        uint32 maxPower = 0;
+    };
+
+    std::unordered_map<uint64, GroupMemberStateSnapshot> _pendingGroupMemberStates;
+    uint64 _lastGroupMemberStateFlushMs = 0;
 
     AsyncCallbackProcessor<AsyncTask<bool>> _asyncTasksProcessor;
 };
