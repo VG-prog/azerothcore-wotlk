@@ -62,6 +62,12 @@ void TC9UpdateGroupMemberState(
     panicWithTC9Unavailable("TC9UpdateGroupMemberState");
 }
 
+void TC9StartReadyCheck(uint32_t groupGuid, uint64_t leaderGuid, uint32_t durationMs) { panicWithTC9Unavailable("TC9StartReadyCheck"); }
+
+void TC9SetReadyCheckMemberState(uint32_t groupGuid, uint64_t memberGuid, uint8_t state) { panicWithTC9Unavailable("TC9SetReadyCheckMemberState"); }
+
+void TC9FinishReadyCheck(uint32_t groupGuid) { panicWithTC9Unavailable("TC9FinishReadyCheck"); }
+
 void TC9SetGuildCreateHandler(GuildCreateHandler h) { panicWithTC9Unavailable("TC9SetGuildCreateHandler"); }
 
 void TC9SetOnGuildMemberAddedHook(OnGuildMemberAddedHook h) { panicWithTC9Unavailable("TC9SetOnGuildMemberAddedHook"); }

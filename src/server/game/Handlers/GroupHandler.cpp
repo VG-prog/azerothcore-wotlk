@@ -40,6 +40,11 @@
 
 class Aura;
 
+namespace
+{
+    constexpr uint32 CLUSTER_READY_CHECK_DURATION_MS = 35000;
+}
+
 /* differeces from off:
     -you can uninvite yourself - is is useful
     -you can accept invitation even if leader went offline
@@ -720,6 +725,9 @@ void WorldSession::HandleRaidReadyCheckOpcode(WorldPacket& recvData)
             }
         }
 
+        if (sToCloud9Sidecar->StartGroupReadyCheck(group, GetPlayer()->GetGUID(), CLUSTER_READY_CHECK_DURATION_MS))
+            return;
+
         // everything's fine, do it
         WorldPacket data(MSG_RAID_READY_CHECK, 8);
         data << GetPlayer()->GetGUID();
@@ -731,6 +739,9 @@ void WorldSession::HandleRaidReadyCheckOpcode(WorldPacket& recvData)
     {
         uint8 state;
         recvData >> state;
+
+        if (sToCloud9Sidecar->SetReadyCheckMemberState(group, GetPlayer()->GetGUID(), state ? 1 : 2))
+            return;
 
         // everything's fine, do it
         WorldPacket data(MSG_RAID_READY_CHECK_CONFIRM, 9);
@@ -747,6 +758,9 @@ void WorldSession::HandleRaidReadyCheckFinishedOpcode(WorldPacket& /*recvData*/)
         return;
 
     if (!group->IsLeader(GetPlayer()->GetGUID()) && !group->IsAssistant(GetPlayer()->GetGUID()))
+        return;
+
+    if (sToCloud9Sidecar->FinishGroupReadyCheck(group))
         return;
 
     WorldPacket data(MSG_RAID_READY_CHECK_FINISHED);

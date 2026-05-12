@@ -302,6 +302,44 @@ void ToCloud9Sidecar::FlushGroupMemberStateUpdates(bool force)
     LOG_DEBUG("server", "TC9 flushed group member state batch: count={}", count);
 }
 
+bool ToCloud9Sidecar::StartGroupReadyCheck(Group* group, ObjectGuid leaderGuid, uint32 durationMs)
+{
+    if (!_clusterModeEnabled || !group || group->isBGGroup() || group->isBFGroup())
+        return false;
+
+    TC9StartReadyCheck(group->GetGUID().GetCounter(), leaderGuid.GetDBValue(), durationMs);
+
+    LOG_DEBUG("server", "TC9 published group ready check started: group={}, leader={}, durationMs={}",
+        group->GetGUID().GetCounter(), leaderGuid.GetDBValue(), durationMs);
+
+    return true;
+}
+
+bool ToCloud9Sidecar::SetReadyCheckMemberState(Group* group, ObjectGuid memberGuid, uint8 state)
+{
+    if (!_clusterModeEnabled || !group || group->isBGGroup() || group->isBFGroup())
+        return false;
+
+    TC9SetReadyCheckMemberState(group->GetGUID().GetCounter(), memberGuid.GetDBValue(), state);
+
+    LOG_DEBUG("server", "TC9 published group ready check member state: group={}, member={}, state={}",
+        group->GetGUID().GetCounter(), memberGuid.GetDBValue(), uint32(state));
+
+    return true;
+}
+
+bool ToCloud9Sidecar::FinishGroupReadyCheck(Group* group)
+{
+    if (!_clusterModeEnabled || !group || group->isBGGroup() || group->isBFGroup())
+        return false;
+
+    TC9FinishReadyCheck(group->GetGUID().GetCounter());
+
+    LOG_DEBUG("server", "TC9 published group ready check finished: group={}", group->GetGUID().GetCounter());
+
+    return true;
+}
+
 void ToCloud9Sidecar::OnPlayerLeftBattleground(uint64 playerGUID, uint32 realmID, uint32 instanceID)
 {
     TC9PlayerLeftBattleground(playerGUID, realmID, instanceID);
